@@ -1,0 +1,29 @@
+name: Mirror to Gitea
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+
+jobs:
+  mirror:
+    name: Mirror → gitea.rackops.in
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mirror to Gitea
+        env:
+          GITEA_USER:  ${{ secrets.GITEA_USER }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          REPO_NAME="${{ github.event.repository.name }}"
+          REMOTE_URL="https://${GITEA_USER}:${GITEA_TOKEN}@gitea.rackops.in/mayank/${REPO_NAME}.git"
+          git remote remove gitea 2>/dev/null || true
+          git remote add gitea "${REMOTE_URL}"
+          git push gitea --mirror
+          echo "✅ Mirrored ${REPO_NAME} → gitea.rackops.in/mayank/${REPO_NAME}"

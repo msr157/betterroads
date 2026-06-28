@@ -1,0 +1,105 @@
+name: CI — Lint · Test · Build · Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - qa
+
+env:
+  IMAGE_NAME: betterroads
+  IMAGE_TAG:  ${{ gitea.sha }}
+
+jobs:
+  ci:
+    name: CI Pipeline
+    runs-on: self-hosted
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Checking CI dependencies..."
+          which wget || { apk add wget 2>/dev/null || apt-get install -y wget 2>/dev/null; }
+          echo "✅ Dependencies ready."
+
+      - name: Lint source files
+        run: |
+          echo "🔍 Linting..."
+          ERRORS=0
+          for f in Dockerfile docker-compose.yml nginx.conf src/index.html src/style.css src/app.js; do
+            [ -f "$f" ] && echo "✅ $f" || { echo "❌ Missing: $f"; ERRORS=$((ERRORS+1)); }
+          done
+          grep -q "<!DOCTYPE html>" src/index.html && echo "✅ HTML5 doctype" || { echo "❌ Missing doctype"; ERRORS=$((ERRORS+1)); }
+          grep -q "nginx" Dockerfile && echo "✅ nginx in Dockerfile" || { echo "❌ nginx missing"; ERRORS=$((ERRORS+1)); }
+          grep -q "server {" nginx.conf && echo "✅ nginx server block" || { echo "❌ nginx server block missing"; ERRORS=$((ERRORS+1)); }
+          [ "$ERRORS" -gt 0 ] && { echo "::error::Lint failed with $ERRORS error(s)"; exit 1; }
+          echo "✅ Lint passed."
+
+      - name: Run tests
+        run: |
+          echo "🧪 Running tests..."
+          FAILURES=0
+          grep -q "<title>" src/index.html   && echo "✅ title tag"     || { echo "❌ title missing";     FAILURES=$((FAILURES+1)); }
+          grep -q "viewport" src/index.html  && echo "✅ viewport meta" || { echo "❌ viewport missing";  FAILURES=$((FAILURES+1)); }
+          grep -q "style.css" src/index.html && echo "✅ style.css linked" || { echo "❌ style.css missing"; FAILURES=$((FAILURES+1)); }
+          grep -q "app.js" src/index.html    && echo "✅ app.js linked"  || { echo "❌ app.js missing";   FAILURES=$((FAILURES+1)); }
+          grep -q "unless-stopped" docker-compose.yml && echo "✅ restart policy" || { echo "❌ restart policy missing"; FAILURES=$((FAILURES+1)); }
+          grep -q "/health" nginx.conf && echo "✅ /health endpoint" || { echo "❌ /health endpoint missing"; FAILURES=$((FAILURES+1)); }
+          [ "$FAILURES" -gt 0 ] && { echo "::error::Tests failed: $FAILURES failure(s)"; exit 1; }
+          echo "✅ All tests passed."
+
+      - name: Build
+        run: |
+          echo "🏗️ Validating static assets..."
+          for f in src/index.html src/style.css src/app.js; do
+            SIZE=$(wc -c < "$f")
+            echo "✅ $f — ${SIZE} bytes"
+          done
+          echo "✅ Build complete."
+
+      - name: Build Docker image
+        run: |
+          docker build --tag "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" --tag "${{ env.IMAGE_NAME }}:latest" --file Dockerfile --no-cache .
+          echo "✅ Docker image built."
+
+      - name: Container health check
+        run: |
+          CONTAINER="betterroads-ci-${{ env.IMAGE_TAG }}"
+          docker run --detach --name "${CONTAINER}" --publish 8989:80 "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          echo "⏳ Waiting..."
+          sleep 8
+          HEALTH=$(wget -qO- --server-response http://localhost:8989/health 2>&1 | grep "HTTP/" | awk '{print $2}' | tail -1)
+          MAIN=$(wget -qO- --server-response http://localhost:8989/ 2>&1 | grep "HTTP/" | awk '{print $2}' | tail -1)
+          docker stop "${CONTAINER}" || true
+          docker rm   "${CONTAINER}" || true
+          [ "${HEALTH}" = "200" ] || { echo "❌ /health failed: HTTP ${HEALTH}"; exit 1; }
+          [ "${MAIN}"   = "200" ] || { echo "❌ / failed: HTTP ${MAIN}";         exit 1; }
+          echo "✅ Health check passed."
+
+      - name: Deploy to Dokploy
+        if: gitea.ref == 'refs/heads/main'
+        env:
+          DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+        run: |
+          [ -z "$DOKPLOY_WEBHOOK_URL" ] && { echo "::error::DOKPLOY_WEBHOOK_URL not set"; exit 1; }
+          HTTP_CODE=$(wget --method=POST --header="Content-Type: application/json" \
+            --body-data="{\"event\":\"deploy\",\"branch\":\"main\",\"service\":\"betterroads\",\"sha\":\"${{ env.IMAGE_TAG }}\"}" \
+            --server-response --spider --output-document=/dev/null "${DOKPLOY_WEBHOOK_URL}" 2>&1 \
+            | grep "HTTP/" | awk '{print $2}' | tail -1)
+          [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "201" ] || [ "${HTTP_CODE}" = "204" ] \
+            || { echo "❌ Webhook failed: HTTP ${HTTP_CODE}"; exit 1; }
+          echo "✅ Deployed to production."
+
+      - name: Skip deploy (qa branch)
+        if: gitea.ref != 'refs/heads/main'
+        run: echo "ℹ️ Not main — deployment skipped."
+
+      - name: Cleanup
+        if: always()
+        run: docker image prune -f --filter "until=24h" || true

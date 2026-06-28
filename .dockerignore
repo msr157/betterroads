@@ -1,0 +1,13 @@
+.git
+.gitignore
+.github
+.gitea
+README.md
+LICENSE
+docs/
+*.md
+*.log
+.env
+.env.*
+node_modules/
+coverage/

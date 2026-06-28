@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="BetterRoads — AI-powered road condition monitoring and smart infrastructure management for modern cities." />
+  <title>BetterRoads — Smarter Roads for Smarter Cities</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="#" class="logo" aria-label="BetterRoads Home">
+        <span class="logo-icon">🛣️</span>
+        <span class="logo-text">BetterRoads</span>
+      </a>
+      <ul class="nav-links" id="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#about">About</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#cta" class="btn-nav">Get Started</a></li>
+      </ul>
+      <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero" id="hero">
+    <div class="hero-bg">
+      <div class="grid-overlay"></div>
+      <div class="glow glow-1"></div>
+      <div class="glow glow-2"></div>
+      <div class="glow glow-3"></div>
+    </div>
+    <div class="container hero-content">
+      <div class="badge">
+        <span class="badge-dot"></span>
+        AI-Powered Infrastructure
+      </div>
+      <h1 class="hero-title">
+        Roads that<br />
+        <span class="gradient-text">think ahead</span>
+      </h1>
+      <p class="hero-subtitle">
+        BetterRoads uses machine learning and real-time sensor data to predict road degradation,
+        schedule maintenance before failures occur, and reduce urban repair costs by up to 60%.
+      </p>
+      <div class="hero-actions">
+        <a href="#cta" class="btn btn-primary" id="hero-cta">Request Demo</a>
+        <a href="#how-it-works" class="btn btn-ghost">See How It Works</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat">
+          <span class="stat-value">60%</span>
+          <span class="stat-label">Cost Reduction</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value">2,400+</span>
+          <span class="stat-label">km Monitored</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value">Real-Time</span>
+          <span class="stat-label">Condition Alerts</span>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-indicator" aria-hidden="true">
+      <div class="scroll-line"></div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Features</span>
+        <h2>Everything your city needs<br /><span class="gradient-text">to maintain better roads</span></h2>
+        <p>A complete platform for road condition intelligence — from sensor data ingestion to automated work orders.</p>
+      </div>
+      <div class="features-grid">
+
+        <div class="feature-card" data-delay="0">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+          </div>
+          <h3>AI Condition Mapping</h3>
+          <p>Computer vision and ML models process satellite and ground-level imagery to classify road surface conditions at scale.</p>
+          <div class="feature-tag">ML-Powered</div>
+        </div>
+
+        <div class="feature-card featured" data-delay="100">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <h3>Predictive Maintenance</h3>
+          <p>Forecast road failures weeks in advance. Prioritize repairs by risk score before problems become costly emergencies.</p>
+          <div class="feature-tag">Predictive</div>
+        </div>
+
+        <div class="feature-card" data-delay="200">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <h3>Real-Time Monitoring</h3>
+          <p>IoT sensors and crowd-sourced reports provide a continuous, live view of your entire road network — updated every minute.</p>
+          <div class="feature-tag">Live Data</div>
+        </div>
+
+        <div class="feature-card" data-delay="300">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          </div>
+          <h3>Analytics Dashboard</h3>
+          <p>Executive-level reports and drill-down analytics. Track KPIs, maintenance spend, and condition trends over time.</p>
+          <div class="feature-tag">Insights</div>
+        </div>
+
+        <div class="feature-card" data-delay="400">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
+          <h3>Citizen Reporting</h3>
+          <p>Mobile-first citizen portal lets residents report potholes and hazards directly. Auto-validates and routes to work crews.</p>
+          <div class="feature-tag">Community</div>
+        </div>
+
+        <div class="feature-card" data-delay="500">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+          </div>
+          <h3>Work Order Automation</h3>
+          <p>Automatically generate, assign, and track repair work orders. Integrate with existing city ERP and GIS systems via API.</p>
+          <div class="feature-tag">Automated</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- About Section -->
+  <section class="about" id="about">
+    <div class="container about-grid">
+      <div class="about-content">
+        <span class="section-tag">About</span>
+        <h2>Roads are critical<br /><span class="gradient-text">infrastructure</span></h2>
+        <p>Every year, poor road conditions cost economies trillions in vehicle damage, lost productivity, and emergency repairs. BetterRoads was built to change that equation.</p>
+        <p>We combine civil engineering expertise with modern AI to give city planners and road authorities the data they need to act before roads fail — not after.</p>
+        <ul class="about-list">
+          <li>
+            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+            Works with existing sensor networks
+          </li>
+          <li>
+            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+            Deployable on any cloud or on-premise
+          </li>
+          <li>
+            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+            GDPR and data sovereignty compliant
+          </li>
+          <li>
+            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+            Open API for GIS and ERP integration
+          </li>
+        </ul>
+      </div>
+      <div class="about-visual">
+        <div class="metrics-card">
+          <div class="metrics-header">
+            <span class="metrics-title">Road Network Status</span>
+            <span class="metrics-live"><span class="badge-dot"></span>Live</span>
+          </div>
+          <div class="metrics-grid">
+            <div class="metric-item good">
+              <div class="metric-bar" style="--pct:78%"></div>
+              <div class="metric-info">
+                <span class="metric-label">Good Condition</span>
+                <span class="metric-val">78%</span>
+              </div>
+            </div>
+            <div class="metric-item warn">
+              <div class="metric-bar" style="--pct:16%"></div>
+              <div class="metric-info">
+                <span class="metric-label">Needs Attention</span>
+                <span class="metric-val">16%</span>
+              </div>
+            </div>
+            <div class="metric-item bad">
+              <div class="metric-bar" style="--pct:6%"></div>
+              <div class="metric-info">
+                <span class="metric-label">Critical</span>
+                <span class="metric-val">6%</span>
+              </div>
+            </div>
+          </div>
+          <div class="metrics-footer">
+            <div class="mf-stat"><span class="mf-val">2,412</span><span class="mf-label">km monitored</span></div>
+            <div class="mf-stat"><span class="mf-val">147</span><span class="mf-label">active sensors</span></div>
+            <div class="mf-stat"><span class="mf-val">3</span><span class="mf-label">alerts today</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="how-it-works" id="how-it-works">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">How It Works</span>
+        <h2>From sensor to <span class="gradient-text">repair order</span></h2>
+        <p>Four steps from raw data to a fixed road.</p>
+      </div>
+      <div class="steps">
+        <div class="step" data-delay="0">
+          <div class="step-number">01</div>
+          <div class="step-content">
+            <h3>Collect</h3>
+            <p>IoT sensors, satellite imagery, vehicle telematics, and citizen reports feed continuous data into the platform.</p>
+          </div>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step" data-delay="150">
+          <div class="step-number">02</div>
+          <div class="step-content">
+            <h3>Analyse</h3>
+            <p>AI models process the data stream, detect anomalies, classify surface defects, and calculate risk scores per segment.</p>
+          </div>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step" data-delay="300">
+          <div class="step-number">03</div>
+          <div class="step-content">
+            <h3>Prioritise</h3>
+            <p>A dynamic priority queue ranks roads by risk, traffic volume, and repair cost — giving engineers an optimal maintenance plan.</p>
+          </div>
+        </div>
+        <div class="step-connector"></div>
+        <div class="step" data-delay="450">
+          <div class="step-number">04</div>
+          <div class="step-content">
+            <h3>Dispatch</h3>
+            <p>Work orders auto-generate and route to repair crews. Progress is tracked to closure and fed back into the model.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="cta-section" id="cta">
+    <div class="container">
+      <div class="cta-card">
+        <div class="cta-glow"></div>
+        <div class="cta-content">
+          <h2>Ready to build better roads?</h2>
+          <p>Join city authorities and infrastructure teams already using BetterRoads<br />to reduce repair costs and improve road safety.</p>
+          <div class="cta-actions">
+            <a href="#" class="btn btn-primary btn-large" id="demo-link">Request a Demo</a>
+            <a href="#" class="btn btn-ghost btn-large" id="docs-link">View Documentation</a>
+          </div>
+          <p class="cta-note">No commitment required. Setup takes less than 48 hours.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <a href="#" class="logo">
+          <span class="logo-icon">🛣️</span>
+          <span class="logo-text">BetterRoads</span>
+        </a>
+        <p>AI-powered road condition monitoring<br />for smarter, safer cities.</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h4>Product</h4>
+          <ul>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#how-it-works">How It Works</a></li>
+            <li><a href="#about">About</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Platform</h4>
+          <ul>
+            <li><a href="#cta">Demo</a></li>
+            <li><a href="#">API Docs</a></li>
+            <li><a href="#">Integrations</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Open Source</h4>
+          <ul>
+            <li><a href="https://github.com/mayank/betterroads" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="LICENSE">License (MIT)</a></li>
+            <li><a href="docs/">Documentation</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="container">
+        <p>© 2026 BetterRoads. Released under the MIT License.</p>
+        <p>Built to make every city's roads safer and smarter.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

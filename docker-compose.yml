@@ -1,0 +1,29 @@
+version: "3.9"
+services:
+  betterroads:
+    image: betterroads:latest
+    build: { context: ., dockerfile: Dockerfile }
+    container_name: betterroads
+    restart: unless-stopped
+    ports: ["80:80"]
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_NAME=${APP_NAME:-betterroads}
+      - DOMAIN=${DOMAIN:-betterroads.local}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.betterroads.rule=Host(`${DOMAIN:-betterroads.local}`)"
+      - "traefik.http.routers.betterroads.entrypoints=websecure"
+      - "traefik.http.routers.betterroads.tls=true"
+      - "traefik.http.services.betterroads.loadbalancer.server.port=80"
+    networks: [betterroads-net]
+networks:
+  betterroads-net:
+    driver: bridge
+    name: betterroads-net
