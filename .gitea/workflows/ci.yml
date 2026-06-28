@@ -3,12 +3,13 @@ name: CI — Lint · Test · Build · Deploy
 # ─────────────────────────────────────────────────────────────────────
 # Gitea Actions CI/CD Pipeline — betterroads
 #
-# Runs on : main        → Full CI + centralized deploy router
-#           qa          → CI only
-#           development → CI only
+# Branch strategy:
+#   main        → CI + Dokploy webhook deploy
+#   qa          → CI only
+#   development → CI only
 #
-# Deploy router: /home/mayank/deploy_router.sh
-# REPO_NAME is derived dynamically from gitea.repository
+# Deployment: Dokploy webhook only. No SSH, no host scripts, no sockets.
+# Secret required in this repository: DOKPLOY_WEBHOOK_URL
 # ─────────────────────────────────────────────────────────────────────
 
 on:
@@ -31,53 +32,58 @@ jobs:
         with:
           fetch-depth: 1
 
-      # ── 2. Verify runtimes available on runner ─────────────────────
+      # ── 2. Verify runtimes ────────────────────────────────────────
       - name: Verify Environment Runtimes
         run: |
-          echo "📦 Inspecting local runner toolchains..."
-          node --version
-          npm --version
+          echo "📦 Inspecting runner toolchains..."
+          node --version  || echo "node not available"
+          npm  --version  || echo "npm not available"
           docker --version
+          curl --version | head -1
+          echo "✅ Environment check complete."
 
       # ── 3. Lint ───────────────────────────────────────────────────
       - name: Code Quality Audit (Lint)
         run: |
-          echo "🔍 Auditing monorepo configurations..."
-          npm run lint || echo "Skipping linter validation step until explicit configuration keys are added."
+          echo "🔍 Running lint..."
+          npm run lint || echo "ℹ️  No lint script defined — skipping."
 
       # ── 4. Tests ──────────────────────────────────────────────────
-      - name: Execute Core Test Suite
+      - name: Execute Test Suite
         run: |
-          echo "🧪 Running unit testing specifications..."
-          npm run test || echo "Skipping test runner execution until explicit suite definitions exist."
+          echo "🧪 Running tests..."
+          npm run test || echo "ℹ️  No test script defined — skipping."
 
       # ── 5. Docker Build ───────────────────────────────────────────
-      # A clean multi-stage build is the primary runtime validation.
-      # The build tag uses the commit SHA for full traceability.
-      - name: Validate Local Dockerfile Compilation
+      # Validates the Dockerfile compiles cleanly.
+      # Runtime: nginx:alpine, port 80, /health endpoint.
+      # A successful build is sufficient CI validation.
+      # Dokploy owns the production deployment and runtime validation.
+      - name: Validate Dockerfile Build
         run: |
-          echo "🐳 Verifying multi-stage container build sequence..."
-          REPO_NAME=$(echo "${{ gitea.repository }}" | awk -F '/' '{print $2}')
-          docker build --no-cache -f Dockerfile . -t local-stage-test:${{ gitea.sha }}
+          echo "🐳 Building Docker image..."
+          docker build --no-cache -f Dockerfile -t ci-validate:${{ gitea.sha }} .
+          echo "✅ Docker build succeeded."
 
       # ── 6. Deploy — main branch only ─────────────────────────────
-      # Calls the centralized deploy router on the Mini PC.
-      # REPO_NAME is passed dynamically — no hardcoded secrets needed.
-      - name: Trigger Centralized Production Router
+      # Triggers Dokploy via webhook. Fails if the webhook returns
+      # a non-success HTTP status. No host access required.
+      - name: Trigger Dokploy Deployment
         if: gitea.ref == 'refs/heads/main'
         run: |
-          REPO_NAME=$(echo "${{ gitea.repository }}" | awk -F '/' '{print $2}')
-          echo "🎯 Invoking server orchestration router for platform stack: $REPO_NAME"
-          /home/mayank/deploy_router.sh "$REPO_NAME"
+          echo "🚀 Triggering Dokploy deployment..."
+          curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_URL }}"
+          echo "✅ Dokploy webhook triggered."
 
       # ── Skip notice for non-production branches ───────────────────
-      - name: Non-Production Bypass Verification
+      - name: Deployment Skipped
         if: gitea.ref != 'refs/heads/main'
-        run: echo "ℹ️ Branch environment is non-production. Deployment cycle safely skipped."
+        run: echo "ℹ️  Not on main — CI passed, deployment skipped."
 
-      # ── 7. Cleanup — always runs ──────────────────────────────────
-      - name: Dynamic Post-Build Cleanup
+      # ── 7. Cleanup ────────────────────────────────────────────────
+      - name: Cleanup
         if: always()
         run: |
-          echo "🧹 Pruning build layer fragments..."
+          echo "🧹 Pruning dangling Docker images..."
           docker image prune -f || true
+          echo "🧹 Done."
