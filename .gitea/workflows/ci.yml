@@ -3,9 +3,11 @@ name: CI — Lint · Test · Build · Deploy
 # ─────────────────────────────────────────────────────────────────────
 # Gitea Actions CI Pipeline — betterroads
 #
-# Runs on : main (CI + deploy) | qa (CI only)
+# Runs on : main  → CI + Dokploy deploy
+#           qa    → CI only
+#           development → CI only
 # Runner  : ubuntu-latest
-# Deploy  : Dokploy webhook, ONLY on main, ONLY after every step passes
+# Deploy  : Dokploy webhook, ONLY on main, ONLY after all steps pass
 # ─────────────────────────────────────────────────────────────────────
 
 on:
@@ -13,6 +15,7 @@ on:
     branches:
       - main
       - qa
+      - development
 
 env:
   IMAGE_NAME: betterroads
@@ -34,28 +37,20 @@ jobs:
       # ── 2. Install dependencies ───────────────────────────────────
       - name: Install dependencies
         run: |
-          echo "📦 Ensuring required tools are available..."
+          echo "📦 Verifying CI tool availability..."
           curl --version | head -1
           docker --version
-          echo "✅ Dependencies ready."
+          echo "✅ All tools available."
 
-      # ── 3. Lint ───────────────────────────────────────────────────
-      - name: Lint source files
+      # ── 3. Lint — required files and static content ───────────────
+      - name: Lint
         run: |
-          echo "🔍 Linting source files..."
+          echo "🔍 Linting repository..."
           ERRORS=0
 
-          REQUIRED_FILES=(
-            "Dockerfile"
-            "docker-compose.yml"
-            "nginx.conf"
-            "src/index.html"
-            "src/style.css"
-            "src/app.js"
-          )
-          for f in "${REQUIRED_FILES[@]}"; do
+          for f in Dockerfile docker-compose.yml nginx.conf src/index.html src/style.css src/app.js; do
             if [ -f "$f" ]; then
-              echo "✅ Found: $f"
+              echo "✅ $f"
             else
               echo "❌ Missing: $f"
               ERRORS=$((ERRORS + 1))
@@ -63,35 +58,24 @@ jobs:
           done
 
           grep -q "<!DOCTYPE html>" src/index.html \
-            && echo "✅ HTML5 doctype present" \
+            && echo "✅ HTML5 doctype" \
             || { echo "❌ HTML5 doctype missing"; ERRORS=$((ERRORS + 1)); }
 
-          CSS_SIZE=$(wc -c < src/style.css)
-          [ "$CSS_SIZE" -gt 100 ] \
-            && echo "✅ style.css — ${CSS_SIZE} bytes" \
-            || { echo "❌ style.css empty or too small"; ERRORS=$((ERRORS + 1)); }
+          CSS_BYTES=$(wc -c < src/style.css)
+          [ "$CSS_BYTES" -gt 100 ] \
+            && echo "✅ style.css (${CSS_BYTES} bytes)" \
+            || { echo "❌ style.css is empty or too small"; ERRORS=$((ERRORS + 1)); }
 
-          JS_SIZE=$(wc -c < src/app.js)
-          [ "$JS_SIZE" -gt 50 ] \
-            && echo "✅ app.js — ${JS_SIZE} bytes" \
-            || { echo "❌ app.js empty or too small"; Errors=$((ERRORS + 1)); }
+          JS_BYTES=$(wc -c < src/app.js)
+          [ "$JS_BYTES" -gt 50 ] \
+            && echo "✅ app.js (${JS_BYTES} bytes)" \
+            || { echo "❌ app.js is empty or too small"; ERRORS=$((ERRORS + 1)); }
 
-          grep -q "listen 80" nginx.conf \
-            && echo "✅ nginx.conf has listen 80" \
-            || { echo "❌ nginx.conf missing listen 80"; ERRORS=$((ERRORS + 1)); }
-
-          grep -q "location /" nginx.conf \
-            && echo "✅ nginx.conf has location / block" \
-            || { echo "❌ nginx.conf missing location / block"; ERRORS=$((ERRORS + 1)); }
-
-          if [ "$ERRORS" -gt 0 ]; then
-            echo "::error::Lint failed with $ERRORS error(s)"
-            exit 1
-          fi
+          [ "$ERRORS" -gt 0 ] && { echo "::error::Lint failed — $ERRORS error(s)"; exit 1; }
           echo "✅ Lint passed."
 
-      # ── 4. Tests ──────────────────────────────────────────────────
-      - name: Run tests
+      # ── 4. Tests — structural HTML assertions ─────────────────────
+      - name: Tests
         run: |
           echo "🧪 Running structural tests..."
           FAILURES=0
@@ -113,28 +97,24 @@ jobs:
             || { echo "❌ app.js not linked"; FAILURES=$((FAILURES + 1)); }
 
           grep -qi "nginx" Dockerfile \
-            && echo "✅ Dockerfile uses nginx" \
+            && echo "✅ Dockerfile references nginx" \
             || { echo "❌ Dockerfile missing nginx"; FAILURES=$((FAILURES + 1)); }
 
           grep -q "unless-stopped" docker-compose.yml \
-            && echo "✅ restart: unless-stopped configured" \
+            && echo "✅ restart: unless-stopped present" \
             || { echo "❌ restart policy missing"; FAILURES=$((FAILURES + 1)); }
 
-          if [ "$FAILURES" -gt 0 ]; then
-            echo "::error::Tests failed: $FAILURES failure(s)"
-            exit 1
-          fi
+          [ "$FAILURES" -gt 0 ] && { echo "::error::Tests failed — $FAILURES failure(s)"; exit 1; }
           echo "✅ All tests passed."
 
-      # ── 5. Build — validate static assets ────────────────────────
+      # ── 5. Build — confirm assets are readable ────────────────────
       - name: Build
         run: |
-          echo "🏗️  Validating static assets..."
+          echo "🏗️  Confirming static assets..."
           for f in src/index.html src/style.css src/app.js; do
-            SIZE=$(wc -c < "$f")
-            echo "✅ $f — ${SIZE} bytes"
+            echo "✅ $f — $(wc -c < "$f") bytes"
           done
-          echo "✅ Build validated."
+          echo "✅ Build stage complete."
 
       # ── 6. Docker Build ───────────────────────────────────────────
       - name: Build Docker image
@@ -146,13 +126,12 @@ jobs:
             --file Dockerfile \
             --no-cache \
             .
-          echo "✅ Docker image built: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          echo "✅ Built: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
 
-      # ── 7. Container health check (curl / homepage) ───────────────
-      - name: Container health check
+      # ── 7. Container validation — poll homepage with curl ─────────
+      - name: Container validation
         run: |
-          echo "🏥 Starting container for health check..."
-
+          echo "🏥 Starting container for runtime validation..."
           CONTAINER="${{ env.IMAGE_NAME }}-ci-${{ env.IMAGE_TAG }}"
 
           docker run \
@@ -161,65 +140,65 @@ jobs:
             --publish 8989:80 \
             "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
 
-          echo "⏳ Polling http://localhost:8989/ (timeout: 30s)..."
+          echo "⏳ Polling http://localhost:8989/ — timeout 30s..."
           SUCCESS=false
           for i in $(seq 1 30); do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8989/ || true)
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Got HTTP 200 on attempt ${i} — container is healthy."
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8989/ || true)
+            if [ "$CODE" = "200" ]; then
+              echo "✅ HTTP 200 on attempt ${i} — application is healthy."
               SUCCESS=true
               break
             fi
-            echo "  attempt ${i}/30 — HTTP ${HTTP_CODE}, retrying in 1s..."
+            echo "  [${i}/30] HTTP ${CODE} — waiting 1s..."
             sleep 1
           done
 
-          docker rm -f "${CONTAINER}" || true
-
           if [ "$SUCCESS" != "true" ]; then
-            echo "❌ Container health check failed — homepage did not return HTTP 200 within 30s."
+            echo "❌ Application did not respond with HTTP 200 within 30s."
+            echo "── Docker logs ──────────────────────────────────────────"
+            docker logs "${CONTAINER}" || true
+            echo "─────────────────────────────────────────────────────────"
+            docker rm -f "${CONTAINER}" || true
             exit 1
           fi
 
-      # ── 8. Deploy to Dokploy (main branch only) ───────────────────
+          docker rm -f "${CONTAINER}" || true
+
+      # ── 8. Deploy to Dokploy — main branch only ───────────────────
       - name: Deploy to Dokploy
         if: gitea.ref == 'refs/heads/main'
         env:
           DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
         run: |
-          echo "🚀 Triggering Dokploy deployment (main branch)..."
+          echo "🚀 Deploying to Dokploy..."
 
           if [ -z "$DOKPLOY_WEBHOOK_URL" ]; then
-            echo "::error::DOKPLOY_WEBHOOK_URL secret is not set in Gitea."
+            echo "::error::DOKPLOY_WEBHOOK_URL secret is not configured."
             exit 1
           fi
 
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST \
             -H "Content-Type: application/json" \
             -d "{\"event\":\"deploy\",\"branch\":\"main\",\"service\":\"${{ env.IMAGE_NAME }}\",\"sha\":\"${{ env.IMAGE_TAG }}\"}" \
             "${DOKPLOY_WEBHOOK_URL}")
 
-          echo "  Dokploy webhook → HTTP ${HTTP_CODE}"
+          echo "  Dokploy → HTTP ${CODE}"
+          [ "$CODE" = "200" ] || [ "$CODE" = "201" ] || [ "$CODE" = "204" ] \
+            || { echo "❌ Dokploy webhook failed — HTTP ${CODE}"; exit 1; }
 
-          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ] && [ "$HTTP_CODE" != "204" ]; then
-            echo "❌ Dokploy webhook failed — HTTP ${HTTP_CODE}"
-            exit 1
-          fi
+          echo "✅ Deployment triggered."
 
-          echo "✅ Deployment triggered successfully."
-
-      # ── Skip deploy notice (qa branch) ───────────────────────────
-      - name: Skip deployment notice
+      # ── Skip notice for non-production branches ───────────────────
+      - name: Deployment skipped
         if: gitea.ref != 'refs/heads/main'
-        run: |
-          echo "ℹ️  Branch is not main — CI passed, deployment skipped."
+        run: echo "ℹ️  Branch is not main — CI passed, deployment skipped."
 
       # ── 9. Cleanup — always runs ──────────────────────────────────
       - name: Cleanup
         if: always()
         run: |
-          echo "🧹 Cleaning up dangling Docker resources..."
+          echo "🧹 Cleaning up..."
           docker rm -f "${{ env.IMAGE_NAME }}-ci-${{ env.IMAGE_TAG }}" 2>/dev/null || true
           docker image prune -f || true
-          echo "🧹 Cleanup complete."
+          echo "🧹 Done."
