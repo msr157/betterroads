@@ -79,6 +79,7 @@ jobs:
           HTTP_CODE=$(curl -s -o /tmp/dokploy_resp.txt -w "%{http_code}" \
             -X POST \
             -H "Content-Type: application/json" \
+            -d "{\"branch\":\"main\"}" \
             "https://dokploy.rackops.in/api/deploy/Kj5SxFgLWVKnhG86Z4MJt")
           echo "  HTTP status   = ${HTTP_CODE}"
           echo "  Response body:"
