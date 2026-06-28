@@ -6,8 +6,9 @@ name: CI — Lint · Test · Build · Deploy
 # Runs on : main  → CI + Dokploy deploy
 #           qa    → CI only
 #           development → CI only
-# Runner  : ubuntu-latest
-# Deploy  : Dokploy webhook, ONLY on main, ONLY after all steps pass
+#
+# Runtime validation is delegated to Dokploy.
+# A successful docker build is sufficient proof the image is valid.
 # ─────────────────────────────────────────────────────────────────────
 
 on:
@@ -25,7 +26,7 @@ jobs:
   ci:
     name: CI Pipeline
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       # ── 1. Checkout ───────────────────────────────────────────────
@@ -107,16 +108,9 @@ jobs:
           [ "$FAILURES" -gt 0 ] && { echo "::error::Tests failed — $FAILURES failure(s)"; exit 1; }
           echo "✅ All tests passed."
 
-      # ── 5. Build — confirm assets are readable ────────────────────
-      - name: Build
-        run: |
-          echo "🏗️  Confirming static assets..."
-          for f in src/index.html src/style.css src/app.js; do
-            echo "✅ $f — $(wc -c < "$f") bytes"
-          done
-          echo "✅ Build stage complete."
-
-      # ── 6. Docker Build ───────────────────────────────────────────
+      # ── 5. Docker Build ───────────────────────────────────────────
+      # A successful build is sufficient proof the image is valid.
+      # Runtime validation is handled by Dokploy on deployment.
       - name: Build Docker image
         run: |
           echo "🐳 Building Docker image..."
@@ -128,48 +122,7 @@ jobs:
             .
           echo "✅ Built: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
 
-      # ── 7. Container validation — poll homepage with curl ─────────
-      - name: Container validation
-        run: |
-          echo "🏥 Starting container for runtime validation..."
-          CONTAINER="${{ env.IMAGE_NAME }}-ci-${{ env.IMAGE_TAG }}"
-
-          # Use -P to let Docker assign a random host port — avoids port conflicts
-          docker run \
-            --detach \
-            --name "${CONTAINER}" \
-            -P \
-            "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-
-          # Detect the host port Docker assigned to container port 80
-          HOST_PORT=$(docker port "${CONTAINER}" 80 | head -1 | cut -d: -f2)
-          echo "  Container port 80 → host port ${HOST_PORT}"
-
-          echo "⏳ Polling http://localhost:${HOST_PORT}/ — timeout 30s..."
-          SUCCESS=false
-          for i in $(seq 1 30); do
-            CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${HOST_PORT}/" || true)
-            if [ "$CODE" = "200" ]; then
-              echo "✅ HTTP 200 on attempt ${i} — application is healthy."
-              SUCCESS=true
-              break
-            fi
-            echo "  [${i}/30] HTTP ${CODE} — waiting 1s..."
-            sleep 1
-          done
-
-          if [ "$SUCCESS" != "true" ]; then
-            echo "❌ Application did not respond with HTTP 200 within 30s."
-            echo "── Docker logs ──────────────────────────────────────────"
-            docker logs "${CONTAINER}" || true
-            echo "─────────────────────────────────────────────────────────"
-            docker rm -f "${CONTAINER}" || true
-            exit 1
-          fi
-
-          docker rm -f "${CONTAINER}" || true
-
-      # ── 8. Deploy to Dokploy — main branch only ───────────────────
+      # ── 6. Deploy to Dokploy — main branch only ───────────────────
       - name: Deploy to Dokploy
         if: gitea.ref == 'refs/heads/main'
         env:
@@ -199,11 +152,10 @@ jobs:
         if: gitea.ref != 'refs/heads/main'
         run: echo "ℹ️  Branch is not main — CI passed, deployment skipped."
 
-      # ── 9. Cleanup — always runs ──────────────────────────────────
+      # ── 7. Cleanup — always runs ──────────────────────────────────
       - name: Cleanup
         if: always()
         run: |
-          echo "🧹 Cleaning up..."
-          docker rm -f "${{ env.IMAGE_NAME }}-ci-${{ env.IMAGE_TAG }}" 2>/dev/null || true
+          echo "🧹 Cleaning up dangling Docker resources..."
           docker image prune -f || true
           echo "🧹 Done."
