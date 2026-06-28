@@ -72,7 +72,7 @@ jobs:
         if: gitea.ref == 'refs/heads/main'
         run: |
           echo "🚀 Triggering Dokploy deployment..."
-          curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_URL }}"
+          curl -fsSL -X POST "https://dokploy.rackops.in/api/deploy/Kj5SxFgLWVKnhG86Z4MJt"
           echo "✅ Dokploy webhook triggered."
 
       # ── Skip notice for non-production branches ───────────────────
