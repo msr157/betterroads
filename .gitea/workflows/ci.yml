@@ -66,14 +66,29 @@ jobs:
           echo "✅ Docker build succeeded."
 
       # ── 6. Deploy — main branch only ─────────────────────────────
-      # Triggers Dokploy via webhook. Fails if the webhook returns
-      # a non-success HTTP status. No host access required.
+      # Prints full branch context and Dokploy response body for debugging.
       - name: Trigger Dokploy Deployment
         if: gitea.ref == 'refs/heads/main'
         run: |
-          echo "🚀 Triggering Dokploy deployment..."
-          curl -fsSL -X POST "https://dokploy.rackops.in/api/deploy/Kj5SxFgLWVKnhG86Z4MJt"
-          echo "✅ Dokploy webhook triggered."
+          echo "🔍 Branch context:"
+          echo "  gitea.ref        = ${{ gitea.ref }}"
+          echo "  gitea.sha        = ${{ gitea.sha }}"
+          echo "  gitea.repository = ${{ gitea.repository }}"
+          echo ""
+          echo "🚀 Calling Dokploy webhook..."
+          HTTP_CODE=$(curl -s -o /tmp/dokploy_resp.txt -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            "https://dokploy.rackops.in/api/deploy/Kj5SxFgLWVKnhG86Z4MJt")
+          echo "  HTTP status   = ${HTTP_CODE}"
+          echo "  Response body:"
+          cat /tmp/dokploy_resp.txt || true
+          echo ""
+          if [ "${HTTP_CODE}" != "200" ] && [ "${HTTP_CODE}" != "201" ] && [ "${HTTP_CODE}" != "204" ]; then
+            echo "❌ Dokploy webhook failed — HTTP ${HTTP_CODE}"
+            exit 1
+          fi
+          echo "✅ Dokploy webhook accepted."
 
       # ── Skip notice for non-production branches ───────────────────
       - name: Deployment Skipped
