@@ -134,16 +134,21 @@ jobs:
           echo "🏥 Starting container for runtime validation..."
           CONTAINER="${{ env.IMAGE_NAME }}-ci-${{ env.IMAGE_TAG }}"
 
+          # Use -P to let Docker assign a random host port — avoids port conflicts
           docker run \
             --detach \
             --name "${CONTAINER}" \
-            --publish 8989:80 \
+            -P \
             "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
 
-          echo "⏳ Polling http://localhost:8989/ — timeout 30s..."
+          # Detect the host port Docker assigned to container port 80
+          HOST_PORT=$(docker port "${CONTAINER}" 80 | head -1 | cut -d: -f2)
+          echo "  Container port 80 → host port ${HOST_PORT}"
+
+          echo "⏳ Polling http://localhost:${HOST_PORT}/ — timeout 30s..."
           SUCCESS=false
           for i in $(seq 1 30); do
-            CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8989/ || true)
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${HOST_PORT}/" || true)
             if [ "$CODE" = "200" ]; then
               echo "✅ HTTP 200 on attempt ${i} — application is healthy."
               SUCCESS=true
