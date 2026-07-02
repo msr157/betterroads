@@ -1,7 +1,7 @@
 name: CI — Lint · Test · Build · Deploy
 
 # ─────────────────────────────────────────────────────────────────────
-# Gitea Actions CI/CD Pipeline — betterroads
+# GitHub Actions CI/CD Pipeline — betterroads
 #
 # Branch strategy:
 #   main        → CI + Dokploy webhook deploy
@@ -62,18 +62,18 @@ jobs:
       - name: Validate Dockerfile Build
         run: |
           echo "🐳 Building Docker image..."
-          docker build --no-cache -f Dockerfile -t ci-validate:${{ gitea.sha }} .
+          docker build --no-cache -f Dockerfile -t ci-validate:${{ github.sha }} .
           echo "✅ Docker build succeeded."
 
       # ── 6. Deploy — main branch only ─────────────────────────────
       # Prints full branch context and Dokploy response body for debugging.
       - name: Trigger Dokploy Deployment
-        if: gitea.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         run: |
           echo "🔍 Branch context:"
-          echo "  gitea.ref        = ${{ gitea.ref }}"
-          echo "  gitea.sha        = ${{ gitea.sha }}"
-          echo "  gitea.repository = ${{ gitea.repository }}"
+          echo "  github.ref        = ${{ github.ref }}"
+          echo "  github.sha        = ${{ github.sha }}"
+          echo "  github.repository = ${{ github.repository }}"
           echo ""
           echo "🚀 Calling Dokploy webhook..."
           HTTP_CODE=$(curl -s -L -o /tmp/dokploy_resp.txt -w "%{http_code}" \
@@ -93,7 +93,7 @@ jobs:
 
       # ── Skip notice for non-production branches ───────────────────
       - name: Deployment Skipped
-        if: gitea.ref != 'refs/heads/main'
+        if: github.ref != 'refs/heads/main'
         run: echo "ℹ️  Not on main — CI passed, deployment skipped."
 
       # ── 7. Cleanup ────────────────────────────────────────────────
