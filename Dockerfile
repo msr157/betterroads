@@ -30,8 +30,9 @@ LABEL org.opencontainers.image.title="betterroads"
 LABEL org.opencontainers.image.description="BetterRoads — AI-Powered Road Condition Monitoring"
 LABEL org.opencontainers.image.licenses="MIT"
 
-# Remove default nginx placeholder content
-RUN rm -rf /usr/share/nginx/html/*
+# Remove default nginx placeholder content and install curl for healthcheck
+RUN apk add --no-cache curl && \
+    rm -rf /usr/share/nginx/html/*
 
 # Copy built files from the website workspace
 COPY --from=builder /build/website/dist/ /usr/share/nginx/html/
