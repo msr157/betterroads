@@ -66,30 +66,11 @@ jobs:
           echo "✅ Docker build succeeded."
 
       # ── 6. Deploy — main branch only ─────────────────────────────
-      # Prints full branch context and Dokploy response body for debugging.
-      - name: Trigger Dokploy Deployment
+      # Dokploy now automatically listens to GitHub webhooks.
+      # No manual trigger is required in this pipeline.
+      - name: Deployment handled by Dokploy
         if: github.ref == 'refs/heads/main'
-        run: |
-          echo "🔍 Branch context:"
-          echo "  github.ref        = ${{ github.ref }}"
-          echo "  github.sha        = ${{ github.sha }}"
-          echo "  github.repository = ${{ github.repository }}"
-          echo ""
-          echo "🚀 Calling Dokploy webhook..."
-          HTTP_CODE=$(curl -s -L -o /tmp/dokploy_resp.txt -w "%{http_code}" \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -d "{\"ref\":\"refs/heads/main\"}" \
-            "https://dokploy.rackops.in/api/deploy/Kj5SxFgLWVKnhG86Z4MJt")
-          echo "  HTTP status   = ${HTTP_CODE}"
-          echo "  Response body:"
-          cat /tmp/dokploy_resp.txt || true
-          echo ""
-          if [ "${HTTP_CODE}" != "200" ] && [ "${HTTP_CODE}" != "201" ] && [ "${HTTP_CODE}" != "204" ]; then
-            echo "❌ Dokploy webhook failed — HTTP ${HTTP_CODE}"
-            exit 1
-          fi
-          echo "✅ Dokploy webhook accepted."
+        run: echo "✅ Dokploy will deploy automatically via GitHub Webhooks."
 
       # ── Skip notice for non-production branches ───────────────────
       - name: Deployment Skipped
