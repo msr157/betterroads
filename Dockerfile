@@ -46,6 +46,6 @@ EXPOSE 80
 # Healthcheck — curl is available on nginx:alpine
 # Probes the /health endpoint added in nginx.conf
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD curl -fs http://localhost/health || exit 1
+  CMD curl -fs http://127.0.0.1/health || exit 1
 
 # nginx starts via its own default CMD — no override needed
