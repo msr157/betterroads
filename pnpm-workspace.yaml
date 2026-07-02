@@ -1,0 +1,6 @@
+packages:
+  - "website"
+  - "backend"
+  - "mobile"
+  - "ai"
+  - "services"

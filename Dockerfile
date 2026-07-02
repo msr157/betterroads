@@ -1,11 +1,24 @@
 # ─────────────────────────────────────────────────────
 # Stage 1: Build
-# Copies static source files — no compilation needed
+# Installs dependencies and builds the React website
 # ─────────────────────────────────────────────────────
-FROM alpine:3.20 AS builder
+FROM node:20-alpine AS builder
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /build
-COPY src/ ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY website/package.json ./website/
+
+# Install dependencies (frozen-lockfile if it exists, otherwise normal install)
+RUN pnpm install
+
+# Copy source code
+COPY website/ ./website/
+
+# Build the website
+RUN pnpm --filter website build
 
 # ─────────────────────────────────────────────────────
 # Stage 2: Production runtime (nginx on Alpine)
@@ -20,8 +33,8 @@ LABEL org.opencontainers.image.licenses="MIT"
 # Remove default nginx placeholder content
 RUN rm -rf /usr/share/nginx/html/*
 
-# Copy static files from builder stage
-COPY --from=builder /build/ /usr/share/nginx/html/
+# Copy built files from the website workspace
+COPY --from=builder /build/website/dist/ /usr/share/nginx/html/
 
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
