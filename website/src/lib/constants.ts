@@ -66,4 +66,6 @@ export const NAV_LINKS = [
 ] as const;
 
 /** Backend API base URL — set VITE_API_URL in .env (no trailing slash). */
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+// In production, we use relative paths because Nginx/Traefik will route /api to the backend.
+// In local dev, we can set VITE_API_URL=http://localhost:3000
+export const API_URL = import.meta.env.VITE_API_URL ?? '';
