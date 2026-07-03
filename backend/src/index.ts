@@ -60,8 +60,8 @@ async function start() {
     process.exit(1);
   }
 
-  serve({ fetch: app.fetch, port }, (info) => {
-    console.log(`[betterroads-api] listening on http://localhost:${info.port}`);
+  serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
+    console.log(`[betterroads-api] listening on http://${info.address}:${info.port}`);
   });
 }
 
