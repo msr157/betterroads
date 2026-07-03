@@ -18,6 +18,18 @@ export const waitlistSignups = pgTable(
     /** Optional city, trimmed, max 80 chars. */
     city: text('city'),
 
+    /**
+     * Optional way the signup offered to contribute (slug from
+     * CONTRIBUTION_OPTIONS, e.g. 'road_data'). Null when none selected.
+     */
+    contribution: text('contribution'),
+
+    /** Optional WhatsApp number for follow-up. Null when not provided. */
+    whatsapp: text('whatsapp'),
+
+    /** Optional free-text message / how they can help. Null when empty. */
+    message: text('message'),
+
     /** Row creation timestamp (server-side UTC). */
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

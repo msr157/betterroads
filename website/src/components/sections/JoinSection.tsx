@@ -61,7 +61,7 @@ export default function JoinSection() {
               onClick={open}
               aria-label="Join the movement"
               strength={0.4}
-              className="rounded-full bg-saffron px-9 py-4 font-display text-lg font-semibold text-paper shadow-[0_14px_34px_-12px_rgba(224,97,28,0.6)] transition-colors hover:bg-ink"
+              className="rounded-full bg-ink px-9 py-4 font-display text-lg font-semibold text-paper shadow-[0_14px_34px_-12px_rgba(10,10,10,0.55)] transition-colors hover:bg-saffron"
             >
               Join the movement
             </MagneticButton>

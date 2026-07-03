@@ -12,22 +12,40 @@ type Props = {
 
 type Status = 'idle' | 'loading' | 'success' | 'already' | 'error';
 
+/** Optional ways a signup can offer to contribute. Values are the DB slugs. */
+const CONTRIBUTION_OPTIONS = [
+  { value: 'road_data', label: 'Collecting road data while commuting' },
+  { value: 'authority_mapping', label: 'Helping map road authorities' },
+  { value: 'verification', label: 'Verifying road issues in my area' },
+  { value: 'tech', label: 'Supporting tech/product improvement' },
+  { value: 'research_validation', label: 'Helping with research and data validation' },
+  { value: 'cloud_ai', label: 'Donating cloud / AI / infrastructure credits' },
+  { value: 'funding', label: 'Supporting funding, grants, or CSR' },
+  { value: 'awareness', label: 'Helping with awareness campaigns' },
+  { value: 'legal_policy', label: 'Supporting legal, policy, or RTI work' },
+  { value: 'govt_connect', label: 'Connecting Better Roads with government / civic authorities' },
+  { value: 'unsure', label: 'I’m not sure yet, but I want to help' },
+] as const;
+
 export default function WaitlistModal({ isOpen, onClose, currentCount, onJoined }: Props) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
+  const [contribution, setContribution] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [helpMessage, setHelpMessage] = useState('');
   const [company, setCompany] = useState(''); // honeypot
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
   const [burst, setBurst] = useState(0);
-  const emailRef = useRef<HTMLInputElement>(null);
+  const firstFieldRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Lock body scroll and focus email on open
   useEffect(() => {
     if (!isOpen) return;
     document.body.style.overflow = 'hidden';
-    const id = setTimeout(() => emailRef.current?.focus(), 60);
+    const id = setTimeout(() => firstFieldRef.current?.focus(), 60);
     return () => {
       document.body.style.overflow = '';
       clearTimeout(id);
@@ -66,7 +84,7 @@ export default function WaitlistModal({ isOpen, onClose, currentCount, onJoined 
       const res = await fetch(`${API_URL}/api/waitlist/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, city, company }),
+        body: JSON.stringify({ email, name, city, contribution, whatsapp, message: helpMessage, company }),
       });
       const json = await res.json() as { ok: boolean; already?: boolean; count?: number; error?: string };
       if (!res.ok || !json.ok) {
@@ -92,7 +110,7 @@ export default function WaitlistModal({ isOpen, onClose, currentCount, onJoined 
     onClose();
     setTimeout(() => {
       if (status === 'success' || status === 'already') {
-        setEmail(''); setName(''); setCity('');
+        setEmail(''); setName(''); setCity(''); setContribution(''); setWhatsapp(''); setHelpMessage('');
       }
       setStatus('idle');
       setMessage('');
@@ -136,7 +154,7 @@ export default function WaitlistModal({ isOpen, onClose, currentCount, onJoined 
               onClick={resetAndClose}
               style={{
                 position: 'absolute', inset: 0,
-                background: 'rgba(23,20,15,0.45)',
+                background: 'rgba(0,0,0,0.45)',
                 backdropFilter: 'blur(4px)',
               }}
             />
@@ -154,7 +172,7 @@ export default function WaitlistModal({ isOpen, onClose, currentCount, onJoined 
                 border: '1px solid var(--color-line)',
                 background: 'var(--color-paper)',
                 padding: '2.25rem',
-                boxShadow: '0 30px 80px -20px rgba(23,20,15,0.35)',
+                boxShadow: '0 30px 80px -20px rgba(0,0,0,0.35)',
               }}
               initial={{ opacity: 0, y: 24, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -203,31 +221,67 @@ export default function WaitlistModal({ isOpen, onClose, currentCount, onJoined 
                     />
 
                     <input
-                      ref={emailRef}
+                      ref={firstFieldRef}
+                      type="text"
+                      required
+                      placeholder="Full Name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      style={inputStyle}
+                    />
+
+                    <input
                       type="email"
                       required
-                      placeholder="you@email.com"
+                      placeholder="Email Address"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       style={inputStyle}
                     />
 
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      <input
-                        type="text"
-                        placeholder="Name (optional)"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        style={inputStyle}
-                      />
-                      <input
-                        type="text"
-                        placeholder="City (optional)"
-                        value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                        style={inputStyle}
-                      />
-                    </div>
+                    <input
+                      type="text"
+                      placeholder="City"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      style={inputStyle}
+                    />
+
+                    <select
+                      value={contribution}
+                      onChange={(e) => setContribution(e.target.value)}
+                      aria-label="I would like to contribute by"
+                      style={{
+                        ...inputStyle,
+                        appearance: 'none',
+                        cursor: 'pointer',
+                        color: contribution ? 'var(--color-ink)' : 'var(--color-ink-3)',
+                      }}
+                    >
+                      <option value="">I would like to contribute by…</option>
+                      {CONTRIBUTION_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value} style={{ color: 'var(--color-ink)' }}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <input
+                      type="tel"
+                      placeholder="WhatsApp Number (optional)"
+                      value={whatsapp}
+                      onChange={(e) => setWhatsapp(e.target.value)}
+                      style={inputStyle}
+                    />
+
+                    <textarea
+                      placeholder="Message / How can you help? (optional)"
+                      value={helpMessage}
+                      onChange={(e) => setHelpMessage(e.target.value)}
+                      rows={3}
+                      maxLength={1000}
+                      style={{ ...inputStyle, resize: 'vertical', minHeight: '4.5rem', fontFamily: 'var(--font-body)' }}
+                    />
 
                     {status === 'error' && (
                       <p style={{ fontSize: '0.875rem', color: 'var(--color-saffron)', margin: 0 }}>{message}</p>

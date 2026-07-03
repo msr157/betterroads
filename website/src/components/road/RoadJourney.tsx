@@ -149,7 +149,7 @@ export default function RoadJourney() {
               <path
                 d={ROAD_D}
                 fill="none"
-                stroke="#d8cfbd"
+                stroke="#e5e5e5"
                 strokeWidth={94}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -161,7 +161,7 @@ export default function RoadJourney() {
                 className="br-road-surface"
                 d={ROAD_D}
                 fill="none"
-                stroke="#26221c"
+                stroke="#1a1a1a"
                 strokeWidth={90}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -182,9 +182,9 @@ export default function RoadJourney() {
               {POTHOLE_FRACTIONS.map((_, i) => (
                 <g key={i} className="br-pothole">
                   <g className="br-broken">
-                    <ellipse rx={30} ry={15} fill="#0c0a08" />
-                    <path d="M -22 -4 L -6 2 L -14 9" fill="none" stroke="#5b5248" strokeWidth={2} />
-                    <path d="M 20 -6 L 6 -1 L 16 6" fill="none" stroke="#5b5248" strokeWidth={2} />
+                    <ellipse rx={30} ry={15} fill="#000000" />
+                    <path d="M -22 -4 L -6 2 L -14 9" fill="none" stroke="#555555" strokeWidth={2} />
+                    <path d="M 20 -6 L 6 -1 L 16 6" fill="none" stroke="#555555" strokeWidth={2} />
                   </g>
                   <circle
                     className="br-repair-ring"
@@ -194,7 +194,7 @@ export default function RoadJourney() {
                     strokeWidth={4}
                   />
                   <g className="br-fixed">
-                    <ellipse rx={32} ry={16} fill="#39342c" />
+                    <ellipse rx={32} ry={16} fill="#2e2e2e" />
                     <ellipse rx={32} ry={16} fill="none" stroke="#1b7a43" strokeWidth={2.5} opacity={0.8} />
                     <path d="M -8 0 L -2 6 L 10 -6" fill="none" stroke="#22c55e" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
                   </g>
@@ -204,11 +204,11 @@ export default function RoadJourney() {
               {/* repair truck — soft shadow is a plain ellipse; SVG filters
                   are CPU-rasterized every frame and stutter on weak GPUs */}
               <g className="br-truck">
-                <ellipse cx={0} cy={17} rx={26} ry={6} fill="#17140f" opacity={0.22} />
+                <ellipse cx={0} cy={17} rx={26} ry={6} fill="#0a0a0a" opacity={0.22} />
                 <rect x={-26} y={-15} width={52} height={30} rx={7} fill="#e0611c" />
-                <rect x={6} y={-11} width={14} height={22} rx={3} fill="#26221c" />
-                <circle cx={22} cy={-9} r={2.4} fill="#f4f0e8" />
-                <circle cx={22} cy={9} r={2.4} fill="#f4f0e8" />
+                <rect x={6} y={-11} width={14} height={22} rx={3} fill="#1a1a1a" />
+                <circle cx={22} cy={-9} r={2.4} fill="#ffffff" />
+                <circle cx={22} cy={9} r={2.4} fill="#ffffff" />
               </g>
             </svg>
           </div>

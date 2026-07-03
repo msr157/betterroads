@@ -14,23 +14,25 @@ export default function WhyNow() {
           </h2>
         </Reveal>
 
-        {/* the beat */}
-        <div className="my-28 flex flex-col items-center gap-3 text-center sm:my-44 sm:gap-4">
-          <Reveal>
-            <p className="font-display text-[clamp(2.1rem,4.8vw,3.75rem)] font-bold tracking-[-0.02em] text-ink">
-              Purpose exists.
-            </p>
-          </Reveal>
-          <Reveal delay={0.08}>
-            <p className="font-display text-[clamp(2.1rem,4.8vw,3.75rem)] font-bold tracking-[-0.02em] text-ink">
-              Outrage exists.
-            </p>
-          </Reveal>
-          <Reveal delay={0.16}>
-            <p className="font-display text-[clamp(2.1rem,4.8vw,3.75rem)] font-bold tracking-[-0.02em] text-ink">
-              Direction is <span className="text-saffron">missing.</span>
-            </p>
-          </Reveal>
+        {/* the beat — inverted black panel */}
+        <div className="my-24 rounded-[2.5rem] bg-ink px-6 py-20 sm:my-36 sm:py-28">
+          <div className="flex flex-col items-center gap-3 text-center sm:gap-4">
+            <Reveal>
+              <p className="font-display text-[clamp(2.1rem,4.8vw,3.75rem)] font-bold tracking-[-0.02em] text-paper">
+                Purpose exists.
+              </p>
+            </Reveal>
+            <Reveal delay={0.08}>
+              <p className="font-display text-[clamp(2.1rem,4.8vw,3.75rem)] font-bold tracking-[-0.02em] text-paper">
+                Outrage exists.
+              </p>
+            </Reveal>
+            <Reveal delay={0.16}>
+              <p className="font-display text-[clamp(2.1rem,4.8vw,3.75rem)] font-bold tracking-[-0.02em] text-paper">
+                Direction is <span className="text-saffron">missing.</span>
+              </p>
+            </Reveal>
+          </div>
         </div>
 
         <Reveal>

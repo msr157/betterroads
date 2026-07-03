@@ -88,7 +88,7 @@ export default function Veil() {
         ref={leftPanelRef}
         style={{
           position: 'absolute', left: 0, top: 0, bottom: 0, width: '50vw',
-          backgroundColor: '#0c0a08', borderRight: '1px solid rgba(224,97,28,0.2)',
+          backgroundColor: '#0a0a0a', borderRight: '1px solid rgba(224,97,28,0.2)',
           willChange: 'transform'
         }}
       />
@@ -98,7 +98,7 @@ export default function Veil() {
         ref={rightPanelRef}
         style={{
           position: 'absolute', right: 0, top: 0, bottom: 0, width: '50vw',
-          backgroundColor: '#0c0a08', borderLeft: '1px solid rgba(224,97,28,0.2)',
+          backgroundColor: '#0a0a0a', borderLeft: '1px solid rgba(224,97,28,0.2)',
           willChange: 'transform'
         }}
       />

@@ -45,7 +45,7 @@ export default function Navbar() {
 
         <button
           onClick={open}
-          className="rounded-full border border-ink px-5 py-2 font-display text-sm font-semibold text-ink transition-colors hover:bg-ink hover:text-paper"
+          className="rounded-full bg-ink px-5 py-2 font-display text-sm font-semibold text-paper transition-colors hover:bg-saffron"
         >
           Join us
         </button>
