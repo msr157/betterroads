@@ -6,12 +6,23 @@ import { NAV_LINKS, SITE } from "@/lib/constants";
 export default function Navbar() {
   const { open } = useWaitlist();
   const [scrolled, setScrolled] = useState(false);
+  // True once the user has scrolled roughly past the full-height hero — used to
+  // grow + highlight the "Join us" button so it stays prominent down the page.
+  const [pastHero, setPastHero] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
+    const onScroll = () => {
+      const y = window.scrollY;
+      setScrolled(y > 24);
+      setPastHero(y > window.innerHeight * 0.85);
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
   }, []);
 
   return (
@@ -45,7 +56,11 @@ export default function Navbar() {
 
         <button
           onClick={open}
-          className="rounded-full bg-ink px-5 py-2 font-display text-sm font-semibold text-paper transition-colors hover:bg-saffron"
+          className={`rounded-full font-display font-semibold text-paper transition-all duration-300 ease-out ${
+            pastHero
+              ? "scale-105 bg-saffron px-7 py-2.5 text-base shadow-[0_10px_28px_-8px_rgba(224,97,28,0.7)] hover:bg-ink"
+              : "bg-ink px-5 py-2 text-sm hover:bg-saffron"
+          }`}
         >
           Join us
         </button>
