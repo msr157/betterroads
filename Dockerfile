@@ -23,7 +23,7 @@ RUN pnpm --filter website build
 # ─────────────────────────────────────────────────────
 # Stage 2: Production runtime (nginx on Alpine)
 # ─────────────────────────────────────────────────────
-FROM nginx:1.27-alpine
+FROM nginx:alpine
 
 LABEL maintainer="betterroads"
 LABEL org.opencontainers.image.title="betterroads"
