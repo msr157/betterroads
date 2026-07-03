@@ -28,9 +28,11 @@ app.use('*', corsMiddleware);
 
 let migrationError: any = null;
 
-/** Health probe — Traefik / Docker healthcheck hits this. */
+/** Internal /health is used by Docker healthcheck, /api/health is used for debugging */
 app.get('/health', (c) => {
-  // Always return 200 so Traefik doesn't mark it unhealthy if the DB connection fails!
+  return c.json({ ok: true, service: 'betterroads-api', migrationError: String(migrationError) });
+});
+app.get('/api/health', (c) => {
   return c.json({ ok: true, service: 'betterroads-api', migrationError: String(migrationError) });
 });
 
