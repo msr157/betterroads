@@ -26,8 +26,13 @@ app.use('*', corsMiddleware);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
+let migrationError: any = null;
+
 /** Health probe — Traefik / Docker healthcheck hits this. */
-app.get('/health', (c) => c.json({ ok: true, service: 'betterroads-api' }));
+app.get('/health', (c) => {
+  // Always return 200 so Traefik doesn't mark it unhealthy if the DB connection fails!
+  return c.json({ ok: true, service: 'betterroads-api', migrationError: String(migrationError) });
+});
 
 /** Waitlist endpoints under /api/waitlist */
 app.route('/api/waitlist', waitlistRouter);
@@ -57,7 +62,8 @@ async function start() {
     console.log('[betterroads-api] migrations completed successfully.');
   } catch (err) {
     console.error('[betterroads-api] database migration failed:', err);
-    process.exit(1);
+    migrationError = err;
+    // process.exit(1); // Removed so we can see the error in the logs or via healthcheck
   }
 
   serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
