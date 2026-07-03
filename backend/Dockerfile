@@ -6,20 +6,20 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy workspace root files (needed for pnpm workspace resolution)
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+# Copy package files (from the backend context)
+COPY package.json ./
+# Attempt to copy lockfile if it exists, otherwise it will just use package.json
+# (In a monorepo, the lockfile is at the root, so it might not be in the backend context. We can just run pnpm install without frozen-lockfile if it's missing)
+COPY package.json ./
 
-# Copy only the backend package (prevents full monorepo install)
-COPY backend/package.json ./backend/
-
-# Install dependencies (production + dev, needed to compile)
-RUN pnpm install --frozen-lockfile --filter @betterroads/backend...
+# Install dependencies
+RUN pnpm install
 
 # Copy backend source
-COPY backend/ ./backend/
+COPY . .
 
-# Build: bundle to a single file so the runtime image needs no node_modules
-RUN pnpm --filter @betterroads/backend run build
+# Build: bundle to a single file
+RUN pnpm run build
 
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
@@ -28,10 +28,10 @@ FROM node:20-alpine AS runtime
 WORKDIR /app
 
 # We bundle everything with esbuild, but copy the built file only.
-COPY --from=builder /app/backend/dist/index.js ./index.js
+COPY --from=builder /app/dist/index.js ./index.js
 
 # Copy migrations folder for automatic startup migrations
-COPY --from=builder /app/backend/migrations ./migrations
+COPY --from=builder /app/migrations ./migrations
 
 # Health endpoint is on /health at the PORT below.
 ENV PORT=3000
