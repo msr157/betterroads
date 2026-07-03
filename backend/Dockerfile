@@ -30,6 +30,9 @@ WORKDIR /app
 # We bundle everything with esbuild, but copy the built file only.
 COPY --from=builder /app/backend/dist/index.js ./index.js
 
+# Copy migrations folder for automatic startup migrations
+COPY --from=builder /app/backend/migrations ./migrations
+
 # Health endpoint is on /health at the PORT below.
 ENV PORT=3000
 EXPOSE 3000

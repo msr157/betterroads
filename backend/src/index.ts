@@ -5,6 +5,8 @@ import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { corsMiddleware } from './middleware/cors.js';
 import { waitlistRouter } from './routes/waitlist.js';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { db } from './db/index.js';
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -44,8 +46,21 @@ app.onError((err, c) => {
 
 const port = parseInt(process.env.PORT ?? '3000', 10);
 
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`[betterroads-api] listening on http://localhost:${info.port}`);
-});
+async function start() {
+  console.log('[betterroads-api] running database migrations...');
+  try {
+    await migrate(db, { migrationsFolder: './migrations' });
+    console.log('[betterroads-api] migrations completed successfully.');
+  } catch (err) {
+    console.error('[betterroads-api] database migration failed:', err);
+    process.exit(1);
+  }
+
+  serve({ fetch: app.fetch, port }, (info) => {
+    console.log(`[betterroads-api] listening on http://localhost:${info.port}`);
+  });
+}
+
+start();
 
 export default app;
