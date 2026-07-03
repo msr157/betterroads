@@ -12,7 +12,7 @@
 **BetterRoads** is a production-ready platform for road infrastructure intelligence. It combines IoT sensor data, satellite imagery analysis, and machine learning to predict road degradation before it becomes a costly emergency — reducing maintenance spend by up to 60%.
 
 ---
-
+## Roshan Yadav
 ## Features
 
 | Feature | Description |
