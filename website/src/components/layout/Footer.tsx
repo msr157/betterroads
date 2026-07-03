@@ -1,45 +1,36 @@
-import Flag from '@/components/ui/Flag';
-import { SITE, SOCIALS } from '@/lib/constants';
+import { SITE, SOCIALS } from "@/lib/constants";
+import Flag from "@/components/ui/Flag";
 
 export default function Footer() {
   return (
-    <footer style={{
-      borderTop: '1px solid var(--color-line)',
-      background: 'var(--color-paper-3)',
-      padding: '4rem 2.5rem',
-    }}>
-      <div style={{ maxWidth: '72rem', margin: '0 auto' }}>
-        {/* Wordmark + socials */}
-        <div style={{
-          display: 'flex', flexWrap: 'wrap', gap: '2rem',
-          borderBottom: '1px solid var(--color-line)', paddingBottom: '3rem',
-          alignItems: 'flex-end', justifyContent: 'space-between',
-        }}>
+    <footer className="border-t border-line bg-paper-3 px-6 py-16 sm:px-10">
+      <div className="mx-auto max-w-6xl">
+        {/* big wordmark line */}
+        <div className="flex flex-col gap-8 border-b border-line pb-12 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <a
               href="#top"
-              className="font-display"
-              style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--color-ink)', textDecoration: 'none' }}
+              className="font-display text-4xl font-bold tracking-tight text-ink sm:text-5xl"
             >
-              {SITE.wordmark}<span style={{ color: 'var(--color-saffron)' }}>.</span>
+              {SITE.wordmark}
+              <span className="text-saffron">.</span>
             </a>
-            <p style={{ marginTop: '1rem', maxWidth: '18rem', lineHeight: 1.6, color: 'var(--color-ink-2)', fontSize: '0.95rem' }}>
+            <p className="mt-4 max-w-xs leading-relaxed text-ink-2">
               {SITE.tagline} · <span className="font-hindi">{SITE.taglineHindi}</span>
             </p>
-            <p style={{ marginTop: '0.75rem', maxWidth: '18rem', fontSize: '0.75rem', lineHeight: 1.6, color: 'var(--color-ink-3)' }}>
+            <p className="mt-3 max-w-xs text-xs leading-relaxed text-ink-3">
               {SITE.methodline}
             </p>
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem 2rem' }}>
+          <div className="flex flex-wrap gap-x-8 gap-y-3">
             {SOCIALS.map((s) => (
               <a
                 key={s.label}
                 href={s.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="link-underline"
-                style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-ink-2)', textDecoration: 'none' }}
+                className="link-underline text-sm font-medium text-ink-2 transition-colors hover:text-ink"
               >
                 {s.label}
               </a>
@@ -47,13 +38,9 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Bottom bar */}
-        <div style={{
-          display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '0.75rem',
-          paddingTop: '2rem', fontSize: '0.875rem', color: 'var(--color-ink-3)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Flag style={{ height: '1rem', width: '1.5rem', flexShrink: 0 } as React.CSSProperties} />
+        <div className="flex flex-col justify-between gap-3 pt-8 text-sm text-ink-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <Flag className="h-4 w-6 shrink-0" />
             <span>© {new Date().getFullYear()} {SITE.name}. A citizen movement.</span>
           </div>
           <p>Made in India</p>

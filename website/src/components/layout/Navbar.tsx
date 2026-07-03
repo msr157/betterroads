@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { useWaitlist } from '@/components/providers/WaitlistProvider';
-import { NAV_LINKS, SITE } from '@/lib/constants';
+
+import { useEffect, useState } from "react";
+import { useWaitlist } from "@/components/providers/WaitlistProvider";
+import { NAV_LINKS, SITE } from "@/lib/constants";
 
 export default function Navbar() {
   const { open } = useWaitlist();
@@ -9,42 +10,33 @@ export default function Navbar() {
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
     onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   return (
-    <header style={{
-      position: 'fixed', inset: '0 0 auto 0', zIndex: 50,
-      transition: 'background 0.3s, border-color 0.3s',
-      background: scrolled ? 'rgba(244,240,232,0.92)' : 'transparent',
-      borderBottom: scrolled ? '1px solid var(--color-line)' : '1px solid transparent',
-      backdropFilter: scrolled ? 'blur(12px)' : 'none',
-    }}>
-      <nav style={{
-        display: 'flex', height: '4rem', maxWidth: '72rem',
-        margin: '0 auto', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 2.5rem',
-      }}>
+    <header
+      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
+        scrolled
+          ? "border-b border-line bg-paper/95 md:bg-paper/85 md:backdrop-blur-md"
+          : "border-b border-transparent"
+      }`}
+    >
+      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6 sm:px-10">
         <a
           href="#top"
-          className="font-display"
-          style={{ fontWeight: 700, fontSize: '1.125rem', letterSpacing: '-0.02em', color: 'var(--color-ink)', textDecoration: 'none' }}
+          className="font-display text-lg font-bold tracking-tight text-ink"
         >
-          {SITE.wordmark}<span style={{ color: 'var(--color-saffron)' }}>.</span>
+          {SITE.wordmark}
+          <span className="text-saffron">.</span>
         </a>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2.25rem' }}>
+        <div className="hidden items-center gap-9 md:flex">
           {NAV_LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="link-underline"
-              style={{
-                fontSize: '0.875rem', fontWeight: 500,
-                color: 'var(--color-ink-2)', textDecoration: 'none',
-                transition: 'color 0.2s',
-              }}
+              className="link-underline text-sm font-medium text-ink-2 transition-colors hover:text-ink"
             >
               {link.label}
             </a>
@@ -53,24 +45,7 @@ export default function Navbar() {
 
         <button
           onClick={open}
-          className="font-display"
-          style={{
-            borderRadius: '9999px', border: '1px solid var(--color-ink)',
-            padding: '0.5rem 1.25rem',
-            fontWeight: 600, fontSize: '0.875rem',
-            color: 'var(--color-ink)', background: 'transparent', cursor: 'pointer',
-            transition: 'background 0.2s, color 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            const btn = e.currentTarget;
-            btn.style.background = 'var(--color-ink)';
-            btn.style.color = 'var(--color-paper)';
-          }}
-          onMouseLeave={(e) => {
-            const btn = e.currentTarget;
-            btn.style.background = 'transparent';
-            btn.style.color = 'var(--color-ink)';
-          }}
+          className="rounded-full border border-ink px-5 py-2 font-display text-sm font-semibold text-ink transition-colors hover:bg-ink hover:text-paper"
         >
           Join us
         </button>

@@ -1,58 +1,68 @@
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap');
+@import "tailwindcss";
 
-/* ─────────────────────────────────────────────────────────────────────────── *
- * BetterRoads — Design System
- * Editorial minimalism: warm paper canvas, near-black ink, ONE saffron accent.
- * Full tricolor is reserved for 1–2 signature moments.
- * ─────────────────────────────────────────────────────────────────────────── */
-
-:root {
+/* ------------------------------------------------------------------ *
+ * BetterRoads — design system
+ * Editorial minimalism: warm paper canvas, near-black ink, ONE saffron
+ * accent. Full tricolor is reserved for a couple of signature moments.
+ * ------------------------------------------------------------------ */
+@theme {
   /* Warm paper canvas */
-  --color-paper:   #f4f0e8;
-  --color-paper-2: #ebe5d9;
-  --color-paper-3: #e4ddcd;
+  --color-paper: #f4f0e8;
+  --color-paper-2: #ebe5d9; /* alternating sections / cards */
+  --color-paper-3: #e4ddcd; /* deeper wells, footer */
 
   /* Ink */
-  --color-ink:         #17140f;
-  --color-ink-2:       #575047;
-  --color-ink-3:       #8a8175;
-  --color-line:        #dcd4c4;
+  --color-ink: #17140f; /* headlines + body */
+  --color-ink-2: #575047; /* secondary text, captions */
+  --color-ink-3: #8a8175; /* faint meta */
+  --color-line: #dcd4c4; /* hairline borders */
   --color-line-strong: #c9c0ac;
 
   /* The single accent */
-  --color-saffron:      #e0611c;
-  --color-saffron-soft: #f4e7d6;
+  --color-saffron: #e0611c; /* deep saffron — accent, high contrast on paper */
+  --color-saffron-soft: #f4e7d6; /* tint for hover/wash */
 
-  /* Tricolor moments only */
+  /* Reserved: tricolor moments only */
   --color-flag-saffron: #ff9933;
-  --color-flag-green:   #138808;
-  --color-green:        #1b7a43;
+  --color-flag-green: #138808;
+  --color-green: #1b7a43; /* deep green — "repaired / free" */
 
-  /* Typography */
-  --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
-  --font-body:    'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-hindi:   'Noto Sans Devanagari', 'Inter', sans-serif;
+  /* Type */
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-hindi: var(--font-noto-devanagari), var(--font-inter), sans-serif;
 
   /* Motion */
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* ─── Reset & Base ────────────────────────────────────────────────────────── */
-
-*, *::before, *::after { box-sizing: border-box; }
-
-html {
-  -webkit-text-size-adjust: 100%;
-  scroll-behavior: smooth;
-  scroll-padding-top: 5rem;
+:root {
   color-scheme: light;
 }
 
-@media (min-width: 1800px) { html { font-size: 17.5px; } }
-@media (min-width: 2300px) { html { font-size: 19px; } }
+html {
+  -webkit-text-size-adjust: 100%;
+  /* Native smooth anchor scrolling on devices where Lenis is disabled
+     (touch / reduced motion). Offset for the fixed navbar. */
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+/* Everything in the design is rem-based (type, spacing, containers),
+   so scaling the root scales the whole composition together. This is
+   what keeps a 21" monitor from feeling like a zoomed-out 14" laptop. */
+@media (min-width: 1800px) {
+  html {
+    font-size: 17.5px;
+  }
+}
+@media (min-width: 2300px) {
+  html {
+    font-size: 19px;
+  }
+}
 
 body {
-  margin: 0;
   background-color: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-body);
@@ -66,95 +76,120 @@ body {
   color: var(--color-paper);
 }
 
-::-webkit-scrollbar              { width: 11px; }
-::-webkit-scrollbar-track        { background: var(--color-paper); }
-::-webkit-scrollbar-thumb        { background: var(--color-line-strong); border-radius: 999px; border: 3px solid var(--color-paper); }
-
-/* ─── Utilities ───────────────────────────────────────────────────────────── */
-
-.eyebrow {
-  font-family: var(--font-body);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--color-ink-2);
+/* Subtle, quiet scrollbar */
+::-webkit-scrollbar {
+  width: 11px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-paper);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-radius: 999px;
+  border: 3px solid var(--color-paper);
 }
 
-.font-display { font-family: var(--font-display); }
-.font-hindi   { font-family: var(--font-hindi); }
+/* ------------------------------------------------------------------ *
+ * Utilities
+ * ------------------------------------------------------------------ */
+@layer utilities {
+  /* Uppercase tracked label — the editorial eyebrow */
+  .eyebrow {
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-ink-2);
+  }
 
-/* Tricolor text — use max twice on the whole page */
-.text-tricolor {
-  background-image: linear-gradient(
-    95deg,
-    var(--color-flag-saffron) 0%,
-    var(--color-flag-saffron) 33%,
-    var(--color-ink)          50%,
-    var(--color-flag-green)   67%,
-    var(--color-flag-green)   100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  /* Full India tricolor text — use RARELY (1–2 spots max) */
+  .text-tricolor {
+    background-image: linear-gradient(
+      95deg,
+      var(--color-flag-saffron) 0%,
+      var(--color-flag-saffron) 33%,
+      var(--color-ink) 50%,
+      var(--color-flag-green) 67%,
+      var(--color-flag-green) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Thin three-stripe flag rule — the single recurring tricolor motif */
+  .flag-rule {
+    background-image: linear-gradient(
+      to right,
+      var(--color-flag-saffron) 0 33.33%,
+      #ffffff 33.33% 66.66%,
+      var(--color-flag-green) 66.66% 100%
+    );
+  }
+
+  .link-underline {
+    background-image: linear-gradient(var(--color-saffron), var(--color-saffron));
+    background-size: 0% 1.5px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 0.4s var(--ease-out-quint);
+  }
+  .link-underline:hover {
+    background-size: 100% 1.5px;
+  }
+
+  /* Viewport height with graceful degradation: vh everywhere, svh where
+     supported (stable on mobile — no jump when the URL bar collapses). */
+  .min-h-viewport {
+    min-height: 100vh;
+    min-height: 100svh;
+  }
+  .h-viewport {
+    height: 100vh;
+    height: 100svh;
+  }
+  /* Cinematic photo band in TheProblem */
+  .h-photo-band {
+    height: 52vh;
+    height: 52svh;
+  }
+  @media (min-width: 640px) {
+    .h-photo-band {
+      height: 72vh;
+      height: 72svh;
+    }
+  }
 }
 
-/* Thin three-stripe flag rule */
-.flag-rule {
-  background-image: linear-gradient(
-    to right,
-    var(--color-flag-saffron) 0 33.33%,
-    #ffffff                   33.33% 66.66%,
-    var(--color-flag-green)   66.66% 100%
-  );
-}
-
-/* Animated underline on hover */
-.link-underline {
-  background-image: linear-gradient(var(--color-saffron), var(--color-saffron));
-  background-size: 0% 1.5px;
-  background-position: 0 100%;
-  background-repeat: no-repeat;
-  transition: background-size 0.4s var(--ease-out-quint);
-}
-.link-underline:hover { background-size: 100% 1.5px; }
-
-/* Viewport height — svh graceful degradation (no jump on mobile URL bar) */
-.min-h-viewport { min-height: 100vh; min-height: 100svh; }
-.h-viewport     { height: 100vh; height: 100svh; }
-
-/* Cinematic photo band */
-.h-photo-band { height: 52vh; height: 52svh; }
-@media (min-width: 640px) { .h-photo-band { height: 72vh; height: 72svh; } }
-
-/* Road journey sticky scene */
-.road-stage { position: relative; height: 420vh; background: var(--color-paper); }
-.road-pin   { height: 100vh; height: 100svh; position: sticky; top: 0; width: 100%; overflow: hidden; }
-.road-svg   { height: 100%; max-height: 100%; width: auto; }
-
+/* Landscape phones & very short windows: a pinned full-screen road scene
+   can't fit, so fall back to a natural static layout. RoadJourney skips the
+   scroll animation under the same condition via gsap.matchMedia. */
 @media (max-height: 580px) {
-  .road-stage, .road-pin { height: auto; }
-  .road-pin              { position: static; }
-  .road-svg              { width: auto; height: auto; max-height: 24rem; }
+  .road-stage {
+    height: auto;
+  }
+  .road-pin {
+    position: static;
+    height: auto;
+  }
+  .road-svg {
+    width: auto;
+    height: auto;
+    max-height: 24rem;
+  }
 }
 
-/* Tabular numbers for countdown */
-.tabular-nums { font-variant-numeric: tabular-nums; }
-
-/* Saffron text */
-.text-saffron { color: var(--color-saffron); }
-.text-ink     { color: var(--color-ink); }
-.text-ink-2   { color: var(--color-ink-2); }
-.text-ink-3   { color: var(--color-ink-3); }
-.text-green   { color: var(--color-green); }
-.text-paper   { color: var(--color-paper); }
-
-/* Reduced motion */
+/* Respect users who prefer less motion */
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  *, *::before, *::after {
-    animation-duration:     0.001ms !important;
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration:    0.001ms !important;
+    transition-duration: 0.001ms !important;
   }
 }
