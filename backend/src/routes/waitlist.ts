@@ -40,12 +40,16 @@ const joinSchema = z.object({
    * Optional way to contribute. Empty string = none. Any other value must be a
    * known contribution slug; unknown values are rejected.
    */
-  contribution: z
-    .string()
-    .trim()
+  /**
+   * Optional ways to contribute (multi-select). Empty array = none. Every
+   * value must be a known contribution slug; unknown values are rejected.
+   */
+  contributions: z
+    .array(z.string())
+    .max(20)
     .optional()
-    .default('')
-    .refine((v) => v === '' || CONTRIBUTION_VALUES.has(v), {
+    .default([])
+    .refine((arr) => arr.every((v) => CONTRIBUTION_VALUES.has(v)), {
       message: 'Invalid contribution option.',
     }),
   /** Optional WhatsApp number. */
@@ -89,7 +93,9 @@ router.post(
       return c.json({ ok: false, error: 'Invalid request.' }, 413);
     }
 
-    const { email, name, city, contribution, whatsapp, message, company } = c.req.valid('json');
+    const { email, name, city, contributions, whatsapp, message, company } = c.req.valid('json');
+    // Persist multi-select contributions as a comma-separated slug list.
+    const contribution = contributions.length ? [...new Set(contributions)].join(',') : null;
 
     // Honeypot — bot filled the hidden field. Pretend success, store nothing.
     if (company) {
@@ -116,7 +122,7 @@ router.post(
         email,
         name,
         city: city || null,
-        contribution: contribution || null,
+        contribution,
         whatsapp: whatsapp || null,
         message: message || null,
       });
