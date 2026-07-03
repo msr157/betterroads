@@ -5,6 +5,8 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { waitlistSignups } from '../db/schema.js';
 import { rateLimitMiddleware } from '../middleware/rateLimit.js';
+import { isDisposableEmail } from '../lib/disposableEmail.js';
+import { CONTRIBUTION_VALUES } from '../lib/contributions.js';
 
 const router = new Hono();
 
@@ -13,11 +15,47 @@ const router = new Hono();
 const joinSchema = z.object({
   email: z
     .string()
-    .email('Please enter a valid email address.')
-    .max(254, 'Email address is too long.')
-    .transform((v) => v.toLowerCase().trim()),
-  name: z.string().max(80).trim().optional().default(''),
+    // Normalise FIRST (trim + lowercase) so validation and de-duplication both
+    // operate on the canonical form: "  ASHA@Gmail.com " → "asha@gmail.com".
+    .trim()
+    .toLowerCase()
+    .pipe(
+      z
+        .string()
+        .email('Please enter a valid email address.')
+        .max(254, 'Email address is too long.')
+        // Reject throwaway / temporary inbox providers.
+        .refine((email) => !isDisposableEmail(email), {
+          message: 'Please use a permanent email address — temporary inboxes aren’t allowed.',
+        }),
+    ),
+  // Name is required — must be a real, non-empty value.
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Please enter your name.')
+    .max(80, 'Name is too long.'),
   city: z.string().max(80).trim().optional().default(''),
+  /**
+   * Optional way to contribute. Empty string = none. Any other value must be a
+   * known contribution slug; unknown values are rejected.
+   */
+  /**
+   * Optional ways to contribute (multi-select). Empty array = none. Every
+   * value must be a known contribution slug; unknown values are rejected.
+   */
+  contributions: z
+    .array(z.string())
+    .max(20)
+    .optional()
+    .default([])
+    .refine((arr) => arr.every((v) => CONTRIBUTION_VALUES.has(v)), {
+      message: 'Invalid contribution option.',
+    }),
+  /** Optional WhatsApp number. */
+  whatsapp: z.string().trim().max(32, 'WhatsApp number is too long.').optional().default(''),
+  /** Optional free-text message. */
+  message: z.string().trim().max(1000, 'Message is too long.').optional().default(''),
   /** Honeypot field — bots fill it, humans leave it empty. */
   company: z.string().optional().default(''),
 });
@@ -55,23 +93,44 @@ router.post(
       return c.json({ ok: false, error: 'Invalid request.' }, 413);
     }
 
-    const { email, name, city, company } = c.req.valid('json');
+    const { email, name, city, contributions, whatsapp, message, company } = c.req.valid('json');
+    // Persist multi-select contributions as a comma-separated slug list.
+    const contribution = contributions.length ? [...new Set(contributions)].join(',') : null;
 
     // Honeypot — bot filled the hidden field. Pretend success, store nothing.
     if (company) {
       return c.json({ ok: true, already: false, count: await getDisplayCount() });
     }
 
+    // ── Duplicate blocking ──────────────────────────────────────────────────
+    // One email = one signup. We check first for a clean "already joined"
+    // response, and rely on the UNIQUE index (waitlist_signups_email_idx) as
+    // the race-safe backstop for two concurrent requests slipping past this
+    // check. Email is already normalised to lowercase by the schema.
+    const existing = await db
+      .select({ id: waitlistSignups.id })
+      .from(waitlistSignups)
+      .where(eq(waitlistSignups.email, email))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return c.json({ ok: true, already: true, count: await getDisplayCount() });
+    }
+
     try {
       await db.insert(waitlistSignups).values({
         email,
-        name: name || null,
+        name,
         city: city || null,
+        contribution,
+        whatsapp: whatsapp || null,
+        message: message || null,
       });
 
       return c.json({ ok: true, already: false, count: await getDisplayCount() });
     } catch (err: unknown) {
-      // Unique constraint violation = duplicate email.
+      // Backstop: a concurrent request inserted the same email between our
+      // check and this insert. The UNIQUE index rejects it → treat as duplicate.
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('unique') || msg.includes('duplicate') || msg.includes('23505')) {
         return c.json({ ok: true, already: true, count: await getDisplayCount() });

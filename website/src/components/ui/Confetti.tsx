@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-const COLORS = ['#ff9933', '#ffffff', '#22c55e', '#ffd24d'];
+const COLORS = ['#ff9933', '#0a0a0a', '#22c55e', '#ffd24d'];
 
 /**
  * Lightweight canvas confetti in the India tricolor palette.

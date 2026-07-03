@@ -2,25 +2,25 @@
 
 /* ------------------------------------------------------------------ *
  * BetterRoads — design system
- * Editorial minimalism: warm paper canvas, near-black ink, ONE saffron
- * accent. Full tricolor is reserved for a couple of signature moments.
+ * Editorial minimalism: pure white canvas, true-black ink blocks, ONE
+ * saffron accent. Full tricolor is reserved for signature moments.
  * ------------------------------------------------------------------ */
 @theme {
-  /* Warm paper canvas */
-  --color-paper: #f4f0e8;
-  --color-paper-2: #ebe5d9; /* alternating sections / cards */
-  --color-paper-3: #e4ddcd; /* deeper wells, footer */
+  /* Pure white canvas */
+  --color-paper: #ffffff;
+  --color-paper-2: #f5f5f4; /* alternating sections / cards */
+  --color-paper-3: #ececea; /* deeper wells */
 
   /* Ink */
-  --color-ink: #17140f; /* headlines + body */
-  --color-ink-2: #575047; /* secondary text, captions */
-  --color-ink-3: #8a8175; /* faint meta */
-  --color-line: #dcd4c4; /* hairline borders */
-  --color-line-strong: #c9c0ac;
+  --color-ink: #0a0a0a; /* headlines + body, inverted blocks */
+  --color-ink-2: #52504c; /* secondary text, captions */
+  --color-ink-3: #8f8b85; /* faint meta */
+  --color-line: #e7e5e2; /* hairline borders */
+  --color-line-strong: #d6d3ce;
 
   /* The single accent */
-  --color-saffron: #e0611c; /* deep saffron — accent, high contrast on paper */
-  --color-saffron-soft: #f4e7d6; /* tint for hover/wash */
+  --color-saffron: #e0611c; /* deep saffron — accent, high contrast on white */
+  --color-saffron-soft: #faeadd; /* tint for hover/wash */
 
   /* Reserved: tricolor moments only */
   --color-flag-saffron: #ff9933;

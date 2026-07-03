@@ -15,6 +15,20 @@
       "when": 1783099485084,
       "tag": "0001_supreme_nuke",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783105246597,
+      "tag": "0002_add_contribution",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783105620853,
+      "tag": "0003_add_whatsapp_message",
+      "breakpoints": true
     }
   ]
 }

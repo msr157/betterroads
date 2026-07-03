@@ -50,7 +50,7 @@ export default function Hero() {
         >
           <Flag className="h-4 w-6 shrink-0" />
           <span className="eyebrow">A citizen movement for India&apos;s roads</span>
-          <span className="ml-auto hidden items-center gap-2 rounded-full bg-saffron/15 px-3.5 py-1.5 text-sm font-semibold text-saffron sm:flex">
+          <span className="ml-auto hidden items-center gap-2 rounded-full bg-ink px-3.5 py-1.5 text-sm font-semibold text-paper sm:flex">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-saffron opacity-60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-saffron" />

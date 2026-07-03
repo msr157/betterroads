@@ -64,7 +64,7 @@ export default function TheProblem() {
     <section
       id="problem"
       ref={scopeRef}
-      className="relative bg-[#161310] text-paper"
+      className="relative bg-ink text-paper"
     >
       {/* intro */}
       <div className="mx-auto max-w-6xl px-6 pt-28 pb-16 sm:px-10 sm:pt-40 sm:pb-24">
@@ -96,8 +96,8 @@ export default function TheProblem() {
           />
         </div>
         {/* mood overlays */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#161310] via-transparent to-[#161310]" />
-        <div className="absolute inset-0 bg-[#161310]/25" />
+        <div className="absolute inset-0 bg-gradient-to-b from-ink via-transparent to-ink" />
+        <div className="absolute inset-0 bg-ink/25" />
         <p className="absolute bottom-6 left-6 eyebrow text-paper/60 sm:left-10">
           The problem we see
         </p>
@@ -135,15 +135,15 @@ export default function TheProblem() {
               className="loop-path"
               d={LOOP_D}
               fill="none"
-              stroke="#5b5348"
+              stroke="#4a4a4a"
               strokeWidth={3}
               strokeLinecap="round"
             />
             {/* lobe labels */}
-            <text className="loop-label" x="300" y="150" textAnchor="middle" fill="#f4f0e8" fontSize="19" fontWeight="700" fontFamily="var(--font-bricolage)">Government</text>
-            <text className="loop-label" x="300" y="178" textAnchor="middle" fill="#8a8175" fontSize="12" letterSpacing="2">RIGID · OPAQUE</text>
-            <text className="loop-label" x="500" y="150" textAnchor="middle" fill="#f4f0e8" fontSize="19" fontWeight="700" fontFamily="var(--font-bricolage)">Citizens</text>
-            <text className="loop-label" x="500" y="178" textAnchor="middle" fill="#8a8175" fontSize="12" letterSpacing="2">TIRED · HELPLESS</text>
+            <text className="loop-label" x="300" y="150" textAnchor="middle" fill="#ffffff" fontSize="19" fontWeight="700" fontFamily="var(--font-bricolage)">Government</text>
+            <text className="loop-label" x="300" y="178" textAnchor="middle" fill="#8c8c8c" fontSize="12" letterSpacing="2">RIGID · OPAQUE</text>
+            <text className="loop-label" x="500" y="150" textAnchor="middle" fill="#ffffff" fontSize="19" fontWeight="700" fontFamily="var(--font-bricolage)">Citizens</text>
+            <text className="loop-label" x="500" y="178" textAnchor="middle" fill="#8c8c8c" fontSize="12" letterSpacing="2">TIRED · HELPLESS</text>
             {/* the break */}
             <path
               className="loop-break"
