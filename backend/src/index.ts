@@ -60,8 +60,13 @@ const port = parseInt(process.env.PORT ?? '3000', 10);
 async function start() {
   console.log('[betterroads-api] running database migrations...');
   try {
-    await migrate(db, { migrationsFolder: './migrations' });
+    await migrate(db, {
+      migrationsFolder: './migrations',
+      migrationsSchema: 'public',
+      migrationsTable: 'betterroads_drizzle_migrations',
+    });
     console.log('[betterroads-api] migrations completed successfully.');
+    migrationError = null;
   } catch (err) {
     console.error('[betterroads-api] database migration failed:', err);
     migrationError = err;
