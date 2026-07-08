@@ -6,6 +6,11 @@
 // Launch: Independence Day, 15 August 2026, midnight IST (UTC+05:30).
 export const LAUNCH_DATE_ISO = '2026-08-15T00:00:00+05:30';
 
+// Teaser trailer shown by the "What is BetterRoads?" button on the hero.
+// Paste a YouTube or Vimeo link here (watch URL or share URL — either works).
+// Leave empty to show the "trailer dropping soon" placeholder instead.
+export const VIDEO_URL = 'https://www.youtube.com/watch?v=AbhE5Wfmoes';
+
 export const SITE = {
   name: 'BetterRoads',
   wordmark: 'betterroads',
