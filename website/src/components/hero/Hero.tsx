@@ -1,26 +1,29 @@
-
+import { useState } from "react";
 import { motion, type Variants } from "framer-motion";
 import MagneticButton from "@/components/ui/MagneticButton";
-import Flag from "@/components/ui/Flag";
+import { SocialIcon } from "@/components/ui/SocialIcons";
 import Countdown from "@/components/countdown/Countdown";
+import VideoModal from "@/components/ui/VideoModal";
 import { useWaitlist } from "@/components/providers/WaitlistProvider";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { SITE, SOCIALS } from "@/lib/constants";
 
 const container: Variants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
+  show: { transition: { staggerChildren: 0.1, delayChildren: 0.05 } },
 };
 
 const line: Variants = {
   hidden: { y: "110%" },
-  show: { y: "0%", transition: { duration: 0.9, ease: [0.22, 1, 0.36, 1] } },
+  show: { y: "0%", transition: { duration: 0.95, ease: [0.22, 1, 0.36, 1] } },
 };
 
 const fade: Variants = {
   hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] } },
 };
 
+/** Mask-reveal wrapper — the line rises up from behind an overflow-clip. */
 function Line({ children }: { children: React.ReactNode }) {
   return (
     <span className="block overflow-hidden pb-[0.06em]">
@@ -34,70 +37,123 @@ function Line({ children }: { children: React.ReactNode }) {
 export default function Hero() {
   const { open } = useWaitlist();
   const reduced = useReducedMotion();
+  const [videoOpen, setVideoOpen] = useState(false);
 
   return (
-    <section className="relative flex min-h-viewport flex-col overflow-hidden px-6 pb-16 pt-24 sm:px-10 sm:pt-28">
+    <section className="relative flex min-h-viewport flex-col overflow-hidden px-6 pb-8 pt-7 sm:px-10">
       <motion.div
         className="mx-auto flex w-full max-w-6xl flex-1 flex-col"
         variants={container}
         initial={reduced ? false : "hidden"}
         animate="show"
       >
-        {/* masthead */}
-        <motion.div
+        {/* ── Masthead: wordmark · launch eyebrow · socials ─────────────── */}
+        <motion.header
           variants={fade}
-          className="flex items-center gap-4 border-b border-line pb-6"
+          className="flex items-center gap-4 border-b border-line pb-5"
         >
-          <Flag className="h-4 w-6 shrink-0" />
-          <span className="eyebrow">A citizen movement for India&apos;s roads</span>
-          <span className="ml-auto hidden items-center gap-2 rounded-full bg-ink px-3.5 py-1.5 text-sm font-semibold text-paper sm:flex">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-saffron opacity-60" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-saffron" />
-            </span>
-            This 15th August
-          </span>
-        </motion.div>
+          <a href="#top" className="font-display text-lg font-bold tracking-tight text-ink">
+            {SITE.wordmark}
+            <span className="text-saffron">.</span>
+          </a>
 
-        {/* headline spread: statement left, thesis + CTA right */}
-        <div className="grid flex-1 content-center gap-10 py-8 lg:grid-cols-[1.5fr_1fr] lg:items-end lg:gap-16">
-          <h1 className="font-display text-[clamp(2.6rem,min(11vw,15vh),8.5rem)] font-extrabold leading-[0.92] tracking-[-0.03em] text-ink lg:whitespace-nowrap lg:text-[clamp(3rem,min(6.2vw,14vh),6.75rem)]">
-            <Line>Freedom from</Line>
+          <span className="eyebrow ml-auto hidden sm:inline">
+            {SITE.launchLabel}
+          </span>
+
+          <div className="flex items-center gap-3 sm:ml-6 sm:pl-6 sm:border-l sm:border-line">
+            {SOCIALS.map((s) => (
+              <a
+                key={s.label}
+                href={s.href}
+                aria-label={s.label}
+                target="_blank"
+                rel="noreferrer"
+                className="text-ink-3 transition-colors hover:text-ink"
+              >
+                <SocialIcon label={s.label} className="h-[1.15rem] w-[1.15rem]" />
+              </a>
+            ))}
+          </div>
+        </motion.header>
+
+        {/* ── The anticipation core, centered in the fold ──────────────── */}
+        <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
+          {/* quiet intrigue — the mother tongue whisper */}
+          <motion.p
+            variants={fade}
+            className="font-hindi mb-6 text-[clamp(1rem,2.2vw,1.4rem)] font-medium tracking-tight text-ink-2"
+          >
+            {SITE.taglineHindi}
+          </motion.p>
+
+          {/* the statement — one monumental line */}
+          <h1 className="font-display text-[clamp(2.5rem,10.5vw,9rem)] font-extrabold leading-[0.9] tracking-[-0.035em] text-ink lg:whitespace-nowrap">
             <Line>
-              <span className="text-saffron">potholes.</span>
+              Freedom from <span className="text-saffron">Potholes.</span>
             </Line>
           </h1>
 
-          <motion.div variants={fade} className="flex flex-col items-start gap-7 lg:pb-3">
-            <p className="font-display text-[clamp(1.25rem,1.8vw,1.6rem)] font-semibold leading-snug tracking-[-0.01em] text-saffron">
-              To fix the roads,
-              <br />
-              let&apos;s fix the system.
-            </p>
-            <div className="flex flex-wrap items-center gap-x-7 gap-y-4">
+          {/* the promise — small, so the headline breathes */}
+          <motion.p
+            variants={fade}
+            className="mt-7 max-w-md font-display text-[clamp(1rem,1.6vw,1.2rem)] font-semibold leading-snug tracking-[-0.01em] text-ink-2"
+          >
+            To fix the roads, let&apos;s fix the system.
+          </motion.p>
+
+          {/* ── The countdown — real date, real urgency ────────────────── */}
+          <motion.div variants={fade} className="mt-12 w-full max-w-3xl">
+            <p className="eyebrow mb-4">Launching 15 August 2026</p>
+            <Countdown />
+          </motion.div>
+
+          {/* ── The two doors: join, or peek behind the curtain ────────── */}
+          <motion.div
+            variants={fade}
+            className="mt-12 flex flex-col items-center gap-6 sm:flex-row sm:gap-8"
+          >
+            <span className="relative">
+              {/* soft saffron under-glow */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 -z-10 rounded-full bg-saffron/30 blur-2xl"
+              />
               <MagneticButton
                 onClick={open}
                 aria-label="Join the movement"
-                className="rounded-full bg-saffron px-9 py-4 font-display text-lg font-semibold text-paper shadow-[0_14px_34px_-12px_rgba(224,97,28,0.6)] transition-colors hover:bg-ink"
+                className="rounded-full bg-saffron px-11 py-4.5 font-display text-lg font-semibold text-paper shadow-[0_18px_44px_-14px_rgba(224,97,28,0.7)] transition-colors hover:bg-ink"
               >
                 Join the movement
               </MagneticButton>
-              <a
-                href="#journey"
-                className="link-underline font-display text-base font-semibold text-ink"
-              >
-                See how it works
-              </a>
-            </div>
+            </span>
+
+            <button
+              onClick={() => setVideoOpen(true)}
+              className="group inline-flex items-center gap-3 font-display text-base font-semibold text-ink transition-colors hover:text-saffron"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-full border border-line-strong text-ink transition-colors group-hover:border-saffron group-hover:text-saffron">
+                {/* play glyph */}
+                <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 h-4 w-4">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </span>
+              What is BetterRoads?
+            </button>
           </motion.div>
         </div>
 
-        {/* the countdown — monumental, anchoring the fold */}
-        <motion.div variants={fade} className="border-t border-line pt-7">
-          <p className="eyebrow mb-5">15th August</p>
-          <Countdown />
-        </motion.div>
+        {/* ── Footer hairline — the single recurring tricolor motif ────── */}
+        <motion.footer variants={fade} className="mt-auto">
+          <div className="flag-rule h-px w-full opacity-70" />
+          <div className="flex items-center justify-between pt-4">
+            <span className="eyebrow">A citizen movement for India&apos;s roads</span>
+            <span className="eyebrow hidden sm:inline">© {SITE.name}</span>
+          </div>
+        </motion.footer>
       </motion.div>
+
+      <VideoModal open={videoOpen} onClose={() => setVideoOpen(false)} />
     </section>
   );
 }
