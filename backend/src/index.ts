@@ -5,7 +5,6 @@ import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { corsMiddleware } from './middleware/cors.js';
 import { waitlistRouter } from './routes/waitlist.js';
-import { launchRouter } from './routes/launch.js';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { db } from './db/index.js';
 
@@ -38,9 +37,6 @@ app.get('/api/health', (c) => {
 
 /** Waitlist endpoints under /api/waitlist */
 app.route('/api/waitlist', waitlistRouter);
-
-/** Launch / Veil endpoints under /api/launch */
-app.route('/api/launch', launchRouter);
 
 // ─── 404 fallback ─────────────────────────────────────────────────────────────
 
