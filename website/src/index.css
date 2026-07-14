@@ -32,6 +32,10 @@
   --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-hindi: "Noto Sans Devanagari", "Inter", ui-sans-serif, sans-serif;
+  /* macOS-native display stack — San Francisco on Apple devices, graceful
+     fallbacks elsewhere. Used for the monumental hero headline. */
+  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    "Helvetica Neue", "Segoe UI", Arial, sans-serif;
 
   /* Motion */
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
