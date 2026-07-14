@@ -87,13 +87,21 @@ export default function Hero() {
             {SITE.taglineHindi}
           </motion.p>
 
-          {/* the statement — one monumental line. Sized in container units
-              (cqi) so it's always a fixed fraction of THIS box's width, not the
-              raw viewport — the line fits on one line at every laptop size /
-              aspect ratio and can never run off-screen. Wraps to two lines only
-              on phones (where one line can't physically fit). */}
-          <div className="w-full" style={{ containerType: 'inline-size' }}>
-            <h1 className="font-display text-[clamp(2.25rem,7.6cqi,5.25rem)] font-extrabold leading-[0.95] tracking-[-0.035em] text-ink whitespace-normal sm:whitespace-nowrap">
+          {/* the statement — one monumental line. Breaks OUT of the max-w-6xl
+              column to span nearly the full viewport, so the words stretch wide
+              across the screen. Sized in container units (cqi) against that
+              viewport-wide box, so it always fills the width on one line at any
+              laptop size / aspect ratio and can never run off-screen. Wraps to
+              two lines only on phones. Uses the macOS-native display stack
+              (San Francisco) per the requested look. */}
+          <div
+            className="w-screen px-4 text-center sm:px-8"
+            style={{ containerType: 'inline-size' }}
+          >
+            <h1
+              className="text-center font-extrabold leading-[0.92] tracking-[-0.04em] text-ink whitespace-normal sm:whitespace-nowrap"
+              style={{ fontFamily: 'var(--font-system)', fontSize: 'clamp(2.75rem, 8.5cqi, 12rem)' }}
+            >
               <Line>
                 Freedom from <span className="text-saffron">Potholes.</span>
               </Line>
