@@ -146,9 +146,17 @@ export default function Hero() {
         {/* ── Footer hairline — the single recurring tricolor motif ────── */}
         <motion.footer variants={fade} className="mt-auto">
           <div className="flag-rule h-px w-full opacity-70" />
-          <div className="flex items-center justify-between pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
             <span className="eyebrow">A citizen movement for India&apos;s roads</span>
-            <span className="eyebrow hidden sm:inline">© {SITE.name}</span>
+            <div className="flex items-center gap-5">
+              <a href="/privacy" className="eyebrow transition-colors hover:text-ink">
+                Privacy
+              </a>
+              <a href="/terms" className="eyebrow transition-colors hover:text-ink">
+                Terms
+              </a>
+              <span className="eyebrow hidden sm:inline">© {SITE.name}</span>
+            </div>
           </div>
         </motion.footer>
       </motion.div>

@@ -25,6 +25,32 @@ export const SITE = {
   launchLabel: 'Launching this Independence Day',
 } as const;
 
+/**
+ * Legal identity — used by the Terms of Service and Privacy Policy pages.
+ * ⚠️ PLACEHOLDERS: replace every [BRACKETED] value with the registered
+ * company's real details before publishing. Governing-law city defaults to
+ * Bengaluru — change if the registered office is elsewhere.
+ */
+export const LEGAL = {
+  // Registered company (India)
+  companyName: '[REGISTERED LEGAL NAME] Private Limited',
+  cin: '[CIN — e.g. U00000KA2026PTC000000]',
+  registeredAddress: '[Registered office address, City, State, PIN], India',
+
+  // Contact & grievance (DPDP Act 2023 requires a reachable grievance channel)
+  contactEmail: '[hello@betterroads.org]',
+  privacyEmail: '[privacy@betterroads.org]',
+  grievanceOfficer: '[Grievance Officer name]',
+  grievanceEmail: '[grievance@betterroads.org]',
+
+  // Jurisdiction
+  governingLawCity: 'Bengaluru',
+  governingLawState: 'Karnataka',
+
+  // Keep in sync when the documents are materially updated.
+  effectiveDate: '14 July 2026',
+} as const;
+
 // How BetterRoads works — visualised along the road.
 export const STEPS = [
   {
