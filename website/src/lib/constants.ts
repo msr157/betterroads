@@ -26,26 +26,25 @@ export const SITE = {
 } as const;
 
 /**
- * Legal identity — used by the Terms of Service and Privacy Policy pages.
- * ⚠️ PLACEHOLDERS: replace every [BRACKETED] value with the registered
- * company's real details before publishing. Governing-law city defaults to
- * Bengaluru — change if the registered office is elsewhere.
+ * Legal identity — used by the Terms of Service and Privacy Policy pages,
+ * and the footer attribution line.
  */
 export const LEGAL = {
   // Registered company (India)
-  companyName: '[REGISTERED LEGAL NAME] Private Limited',
-  cin: '[CIN — e.g. U00000KA2026PTC000000]',
-  registeredAddress: '[Registered office address, City, State, PIN], India',
+  companyName: 'Bonbern Think Tank Studio Private Limited',
+  cin: 'U74999MH2017PTC289735',
+  registeredAddress:
+    '1634 Trimurti Chawl, Y.C. Marg, Maharashtra Nagar, Mankhurd East, Mumbai, Maharashtra 400088, India',
 
   // Contact & grievance (DPDP Act 2023 requires a reachable grievance channel)
-  contactEmail: '[hello@betterroads.org]',
-  privacyEmail: '[privacy@betterroads.org]',
-  grievanceOfficer: '[Grievance Officer name]',
-  grievanceEmail: '[grievance@betterroads.org]',
+  contactEmail: 'privacy@betterroads.org',
+  privacyEmail: 'privacy@betterroads.org',
+  grievanceOfficer: 'Grievance Officer, Better Roads',
+  grievanceEmail: 'grievance@betterroads.org',
 
   // Jurisdiction
-  governingLawCity: 'Bengaluru',
-  governingLawState: 'Karnataka',
+  governingLawCity: 'Mumbai',
+  governingLawState: 'Maharashtra',
 
   // Keep in sync when the documents are materially updated.
   effectiveDate: '14 July 2026',
@@ -84,10 +83,10 @@ export const STATS = [
 ] as const;
 
 export const SOCIALS = [
-  { label: 'Instagram', href: '#' },
-  { label: 'X / Twitter', href: '#' },
-  { label: 'LinkedIn', href: '#' },
-  { label: 'GitHub', href: '#' },
+  { label: 'Instagram', href: 'https://www.instagram.com/betterroads_org/' },
+  { label: 'X / Twitter', href: 'https://x.com/BetterRoadz' },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/betterroads' },
+  { label: 'GitHub', href: 'https://github.com/msr157/betterroads' },
 ] as const;
 
 export const NAV_LINKS = [

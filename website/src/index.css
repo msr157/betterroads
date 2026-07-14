@@ -27,10 +27,11 @@
   --color-flag-green: #138808;
   --color-green: #1b7a43; /* deep green — "repaired / free" */
 
-  /* Type */
-  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
-  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-hindi: var(--font-noto-devanagari), var(--font-inter), sans-serif;
+  /* Type — loaded via Google Fonts in index.html. Explicit families (not the
+     old next/font CSS vars) so every browser renders the same typeface. */
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-hindi: "Noto Sans Devanagari", "Inter", ui-sans-serif, sans-serif;
 
   /* Motion */
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
