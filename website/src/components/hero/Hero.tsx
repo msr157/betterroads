@@ -6,7 +6,7 @@ import Countdown from "@/components/countdown/Countdown";
 import VideoModal from "@/components/ui/VideoModal";
 import { useWaitlist } from "@/components/providers/WaitlistProvider";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { SITE, SOCIALS } from "@/lib/constants";
+import { SITE, SOCIALS, LEGAL } from "@/lib/constants";
 
 const container: Variants = {
   hidden: {},
@@ -87,12 +87,18 @@ export default function Hero() {
             {SITE.taglineHindi}
           </motion.p>
 
-          {/* the statement — one monumental line */}
-          <h1 className="font-display text-[clamp(2.5rem,10.5vw,9rem)] font-extrabold leading-[0.9] tracking-[-0.035em] text-ink lg:whitespace-nowrap">
-            <Line>
-              Freedom from <span className="text-saffron">Potholes.</span>
-            </Line>
-          </h1>
+          {/* the statement — one monumental line. Sized in container units
+              (cqi) so it's always a fixed fraction of THIS box's width, not the
+              raw viewport — the line fits on one line at every laptop size /
+              aspect ratio and can never run off-screen. Wraps to two lines only
+              on phones (where one line can't physically fit). */}
+          <div className="w-full" style={{ containerType: 'inline-size' }}>
+            <h1 className="font-display text-[clamp(2.25rem,7.6cqi,5.25rem)] font-extrabold leading-[0.95] tracking-[-0.035em] text-ink whitespace-normal sm:whitespace-nowrap">
+              <Line>
+                Freedom from <span className="text-saffron">Potholes.</span>
+              </Line>
+            </h1>
+          </div>
 
           {/* the promise — small, so the headline breathes */}
           <motion.p
@@ -158,6 +164,9 @@ export default function Hero() {
               <span className="eyebrow hidden sm:inline">© {SITE.name}</span>
             </div>
           </div>
+          <p className="pt-3 text-xs leading-relaxed text-ink-3">
+            Better Roads is a civic initiative operated by {LEGAL.companyName}.
+          </p>
         </motion.footer>
       </motion.div>
 
