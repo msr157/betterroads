@@ -5,7 +5,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { waitlistSignups } from '../db/schema.js';
 import { rateLimitMiddleware } from '../middleware/rateLimit.js';
-import { isDisposableEmail } from '../lib/disposableEmail.js';
+import { isDisposableEmail, hasMailExchanger } from '../lib/disposableEmail.js';
 import { CONTRIBUTION_VALUES } from '../lib/contributions.js';
 
 const router = new Hono();
@@ -64,6 +64,23 @@ const joinSchema = z.object({
 
 const MAX_BODY_BYTES = 4_096;
 
+// ─── Helper: MX deliverability check with a hard timeout ──────────────────────
+// DNS can hang; cap it so a slow lookup never stalls a signup. On timeout we
+// fail OPEN (allow) — the disposable blocklist is the strict layer; MX is a
+// best-effort catch for typo/garbage domains.
+const MX_TIMEOUT_MS = 3_000;
+
+async function domainCanReceiveMail(email: string): Promise<boolean> {
+  const timeout = new Promise<boolean>((resolve) =>
+    setTimeout(() => resolve(true), MX_TIMEOUT_MS),
+  );
+  try {
+    return await Promise.race([hasMailExchanger(email), timeout]);
+  } catch {
+    return true; // never block on an unexpected error
+  }
+}
+
 // ─── Helper: get display count ────────────────────────────────────────────────
 
 async function getDisplayCount(): Promise<number> {
@@ -100,6 +117,17 @@ router.post(
     // Honeypot — bot filled the hidden field. Pretend success, store nothing.
     if (company) {
       return c.json({ ok: true, already: false, count: await getDisplayCount() });
+    }
+
+    // ── Deliverability check ────────────────────────────────────────────────
+    // The domain passed format + disposable checks; now confirm it can actually
+    // receive mail (has an MX / A record). Catches typos like "gmial.com" and
+    // made-up domains. Fails open on DNS timeout (see domainCanReceiveMail).
+    if (!(await domainCanReceiveMail(email))) {
+      return c.json(
+        { ok: false, error: 'That email domain can’t receive mail. Please check for typos.' },
+        400,
+      );
     }
 
     // ── Duplicate blocking ──────────────────────────────────────────────────
