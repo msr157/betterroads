@@ -1,0 +1,6 @@
+{
+  "name": "Better Roads",
+  "description": "Intelligent Road Quality Monitoring — passively detects bumps, potholes, and rough segments using phone sensors and shares heatmaps to drive infrastructure accountability.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
