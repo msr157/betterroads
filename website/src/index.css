@@ -188,6 +188,20 @@ body {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * /map — MapLibre chrome tuned to the design system
+ * ------------------------------------------------------------------ */
+.maplibregl-popup-content {
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-line);
+  box-shadow: 0 12px 32px -12px rgba(10, 10, 10, 0.25);
+  padding: 0.6rem 0.8rem;
+  font-family: var(--font-body);
+}
+.maplibregl-ctrl-attrib {
+  font-size: 0.625rem;
+}
+
 /* Landscape phones & very short windows: a pinned full-screen road scene
    can't fit, so fall back to a natural static layout. RoadJourney skips the
    scroll animation under the same condition via gsap.matchMedia. */
