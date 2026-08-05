@@ -12,7 +12,7 @@ export default function Privacy() {
   return (
     <LegalLayout
       title="Privacy Policy"
-      intro={`This policy explains what personal data ${SITE.name} collects when you join our waitlist, why we collect it, how we use and protect it, and the rights you have under India's Digital Personal Data Protection Act, 2023.`}
+      intro={`This policy explains what personal data ${SITE.name} collects when you join our waitlist or use the BetterRoads mobile app, why we collect it, how we use and protect it, and the rights you have under India's Digital Personal Data Protection Act, 2023.`}
     >
       <Section n={1} title="Data Fiduciary">
         <p>
@@ -53,7 +53,49 @@ export default function Privacy() {
         </p>
       </Section>
 
-      <Section n={3} title="Why we use it, and our legal basis">
+      <Section n={3} title="The BetterRoads mobile app">
+        <p>
+          The BetterRoads app measures road quality using your phone&apos;s sensors while you
+          travel. It is designed to work <strong>without an account</strong> — we do not ask for
+          your name, email, or phone number in the app. When you use it, we collect:
+        </p>
+        <ul>
+          <li>
+            <strong>Precise location (GPS)</strong> — recorded <em>only while a journey you have
+            started is in progress</em>, to map which roads you travelled and where road events
+            occurred. The app does not track your location in the background or between journeys;
+          </li>
+          <li>
+            <strong>Motion sensor readings</strong> (accelerometer and gyroscope) — to detect
+            potholes, bumps, and rough stretches from vibration patterns while you ride;
+          </li>
+          <li>
+            <strong>Journey details</strong> — the vehicle type you select, distance, duration,
+            speed, derived road-quality scores, and detected road events;
+          </li>
+          <li>
+            <strong>A random install identifier</strong> — a UUID generated on your device the
+            first time you open the app. It is not your MAC address, advertising ID, or any
+            government identifier, and we do not link it to your identity;
+          </li>
+          <li>
+            <strong>Basic device information</strong> — device model, platform (Android/iOS), and
+            app version, for compatibility and debugging.
+          </li>
+        </ul>
+        <p>
+          Journey data is uploaded to our servers when a journey ends and is used to compute and
+          publish <strong>aggregated, non-identifying road-quality information</strong> (for
+          example, the public road-quality map and its history). We do not sell this data. Because
+          location traces can be sensitive, raw journey data is accessible only to us and is
+          processed under the safeguards described in this policy. To have the data associated
+          with your device deleted, contact{' '}
+          <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a> and we will assist in
+          identifying and erasing it.
+        </p>
+      </Section>
+
+      <Section n={4} title="Why we use it, and our legal basis">
         <p>
           We process your personal data on the basis of the <strong>consent</strong> you give by
           voluntarily submitting the waitlist form, for the following purposes:
@@ -74,7 +116,7 @@ export default function Privacy() {
         </p>
       </Section>
 
-      <Section n={4} title="Sharing and disclosure">
+      <Section n={5} title="Sharing and disclosure">
         <p>We do not sell your personal data. We may share it only with:</p>
         <ul>
           <li>
@@ -94,7 +136,7 @@ export default function Privacy() {
         </p>
       </Section>
 
-      <Section n={5} title="How long we keep it">
+      <Section n={6} title="How long we keep it">
         <p>
           We retain your waitlist data until the earlier of: (a) you ask us to delete it or withdraw
           your consent; or (b) it is no longer needed for the purposes above (for example, a
@@ -103,7 +145,7 @@ export default function Privacy() {
         </p>
       </Section>
 
-      <Section n={6} title="Your rights">
+      <Section n={7} title="Your rights">
         <p>Under the DPDP Act, subject to its conditions, you have the right to:</p>
         <ul>
           <li>
@@ -132,7 +174,7 @@ export default function Privacy() {
         </p>
       </Section>
 
-      <Section n={7} title="Grievance Officer">
+      <Section n={8} title="Grievance Officer">
         <p>
           In accordance with the DPDP Act and the Information Technology Act, 2000, you may contact
           our Grievance Officer for any complaint regarding the processing of your personal data:
@@ -155,7 +197,7 @@ export default function Privacy() {
         </p>
       </Section>
 
-      <Section n={8} title="Children's data">
+      <Section n={9} title="Children's data">
         <p>
           This waitlist is intended for adults. We do not knowingly collect personal data from
           children (individuals under 18). If you believe a child has provided us data, contact us
@@ -163,7 +205,7 @@ export default function Privacy() {
         </p>
       </Section>
 
-      <Section n={9} title="Security">
+      <Section n={10} title="Security">
         <p>
           We implement reasonable security safeguards to protect your personal data against
           unauthorised access, disclosure, alteration, or loss, including access controls and
@@ -172,7 +214,7 @@ export default function Privacy() {
         </p>
       </Section>
 
-      <Section n={10} title="Changes to this policy">
+      <Section n={11} title="Changes to this policy">
         <p>
           We may update this policy from time to time. When we make material changes, we will revise
           the &quot;Effective date&quot; above and, where appropriate, notify you. Please review this
@@ -180,7 +222,7 @@ export default function Privacy() {
         </p>
       </Section>
 
-      <Section n={11} title="Contact us">
+      <Section n={12} title="Contact us">
         <p>
           For any question about this policy or your personal data, contact us at{' '}
           <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a> or by post at{' '}
