@@ -7,6 +7,7 @@ import { corsMiddleware } from './middleware/cors.js';
 import { waitlistRouter } from './routes/waitlist.js';
 import { travelDataRouter } from './routes/traveldata.js';
 import { publicRoadsRouter } from './routes/publicRoads.js';
+import { adminRouter } from './routes/admin.js';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { db } from './db/index.js';
 
@@ -49,6 +50,9 @@ app.route('/api/user/mobile', travelDataRouter);
 
 /** Public map + timeline read API */
 app.route('/api/public', publicRoadsRouter);
+
+/** Internal admin API (bearer-token protected, see routes/admin.ts) */
+app.route('/api/admin', adminRouter);
 
 // ─── 404 fallback ─────────────────────────────────────────────────────────────
 
