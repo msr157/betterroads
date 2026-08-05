@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "BetterRoads",
+    "slug": "betterroads",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "betterroads",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "backgroundColor": "#0a0a0a",
+    "ios": {
+      "bundleIdentifier": "org.betterroads.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "BetterRoads records your route while you ride so road quality can be scored. Location is only collected during a journey you start.",
+        "NSMotionUsageDescription": "Motion sensors detect potholes and rough patches while you ride."
+      }
+    },
+    "android": {
+      "package": "org.betterroads.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "HIGH_SAMPLING_RATE_SENSORS"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "BetterRoads records your route while you ride so road quality can be scored."
+        }
+      ],
+      "expo-status-bar"
+    ]
+  }
+}
