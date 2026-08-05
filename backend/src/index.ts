@@ -5,6 +5,8 @@ import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { corsMiddleware } from './middleware/cors.js';
 import { waitlistRouter } from './routes/waitlist.js';
+import { travelDataRouter } from './routes/traveldata.js';
+import { publicRoadsRouter } from './routes/publicRoads.js';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { db } from './db/index.js';
 
@@ -37,6 +39,16 @@ app.get('/api/health', (c) => {
 
 /** Waitlist endpoints under /api/waitlist */
 app.route('/api/waitlist', waitlistRouter);
+
+/**
+ * Mobile ingestion — POST /user/mobile/traveldata (spec path) with an
+ * /api-prefixed alias so it also works through the Traefik /api route.
+ */
+app.route('/user/mobile', travelDataRouter);
+app.route('/api/user/mobile', travelDataRouter);
+
+/** Public map + timeline read API */
+app.route('/api/public', publicRoadsRouter);
 
 // ─── 404 fallback ─────────────────────────────────────────────────────────────
 

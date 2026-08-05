@@ -29,6 +29,13 @@
       "when": 1783105620853,
       "tag": "0003_add_whatsapp_message",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785573537863,
+      "tag": "0004_certain_magus",
+      "breakpoints": true
     }
   ]
 }
