@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "betterroads-ai"
+version = "0.1.0"
+description = "BetterRoads AI Core Engine v1 — batch classification (speed-breaker vs damage) and deterministic rebuild of road-quality aggregates."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "psycopg[binary]>=3.1",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8",
+]
+
+[tool.setuptools]
+packages = ["betterroads_ai"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
