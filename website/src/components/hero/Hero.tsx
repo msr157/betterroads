@@ -155,6 +155,22 @@ export default function Hero() {
               What is BetterRoads?
             </button>
           </motion.div>
+
+          {/* ── Two quieter doors: the app, and the living map ─────────── */}
+          <motion.div
+            variants={fade}
+            className="mt-9 flex flex-wrap items-center justify-center gap-x-8 gap-y-3"
+          >
+            <a href="/app" className="link-underline text-sm font-semibold text-saffron">
+              Download the Android app →
+            </a>
+            <a
+              href="/map"
+              className="link-underline text-sm font-medium text-ink-2 transition-colors hover:text-ink"
+            >
+              Explore the public panel →
+            </a>
+          </motion.div>
         </div>
 
         {/* ── Footer hairline — the single recurring tricolor motif ────── */}

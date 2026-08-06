@@ -460,10 +460,25 @@ export default function WaitlistModal({ isOpen, onClose, currentCount, onJoined 
                       You're citizen #<strong style={{ color: 'var(--color-saffron)' }}>{currentCount.toLocaleString('en-IN')}</strong>
                     </p>
                   )}
+                  {/* Post-waitlist door: straight into the public panel */}
+                  <a
+                    href="/map"
+                    style={{
+                      display: 'block',
+                      marginTop: '1.5rem',
+                      borderRadius: '0.75rem',
+                      background: 'var(--color-saffron)',
+                      padding: '0.875rem 1.5rem',
+                      fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1rem',
+                      color: 'var(--color-paper)', textDecoration: 'none',
+                    }}
+                  >
+                    Explore the public panel →
+                  </a>
                   <button
                     onClick={resetAndClose}
                     style={{
-                      marginTop: '1.5rem',
+                      marginTop: '0.75rem',
                       borderRadius: '0.75rem',
                       border: '1px solid var(--color-line)',
                       padding: '0.75rem 1.5rem',

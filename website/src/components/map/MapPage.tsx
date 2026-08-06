@@ -24,9 +24,10 @@ import {
   dayRange,
   fetchEvents,
   fetchRoads,
+  fetchStats,
   fetchTimeline,
 } from '@/components/map/api';
-import type { RoadEvent, RoadSegment, TimelineData } from '@/components/map/api';
+import type { PublicStats, RoadEvent, RoadSegment, TimelineData } from '@/components/map/api';
 import {
   EVENT_COLOR,
   EVENT_TYPE_LABELS,
@@ -34,9 +35,16 @@ import {
   rqiLabel,
 } from '@/components/map/rqiScale';
 
-// Default view: Mumbai. [lon, lat] — MapLibre order.
-const DEFAULT_CENTER: [number, number] = [72.877, 19.076];
-const DEFAULT_ZOOM = 12;
+// India-only map. [lon, lat] — MapLibre order. The default view frames the
+// whole country; maxBounds stops panning away from it (with margin so
+// border cities and the islands aren't clipped against the edge).
+const DEFAULT_CENTER: [number, number] = [79.5, 22.3];
+const DEFAULT_ZOOM = 4.2;
+const INDIA_MAX_BOUNDS: [[number, number], [number, number]] = [
+  [61.0, 1.0], // SW [lon, lat]
+  [104.0, 40.5], // NE
+];
+const MIN_ZOOM = 3.6;
 /** Events shown alongside a day: the trailing 30-day window ending that day. */
 const EVENT_WINDOW_DAYS = 30;
 /** Debounce for refetches while scrubbing the timeline / panning the map. */
@@ -127,6 +135,7 @@ export default function MapPage() {
   const [timelineFailed, setTimelineFailed] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [updating, setUpdating] = useState(false);
+  const [stats, setStats] = useState<PublicStats | null>(null);
 
   // Full calendar range + per-day activity for the timeline sparkline.
   const days = useMemo(
@@ -195,6 +204,8 @@ export default function MapPage() {
       container: containerRef.current,
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
+      minZoom: MIN_ZOOM,
+      maxBounds: INDIA_MAX_BOUNDS,
       attributionControl: false,
       style: {
         version: 8,
@@ -338,7 +349,7 @@ export default function MapPage() {
     };
   }, [scheduleLoad]);
 
-  /* ── Timeline bootstrap ─────────────────────────────────────────────── */
+  /* ── Timeline + panel stats bootstrap ───────────────────────────────── */
   useEffect(() => {
     let cancelled = false;
     fetchTimeline()
@@ -348,6 +359,12 @@ export default function MapPage() {
       .catch(() => {
         if (!cancelled) setTimelineFailed(true);
       });
+    // Stats are decorative — failure just hides the strip.
+    fetchStats()
+      .then((s) => {
+        if (!cancelled) setStats(s);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -373,6 +390,15 @@ export default function MapPage() {
 
   const showEmpty = timelineFailed || (timeline !== null && !timeline.earliest);
 
+  const statItems = stats
+    ? [
+        { label: 'km ridden', value: stats.kmRidden.toLocaleString('en-IN') },
+        { label: 'road segments', value: stats.segments.toLocaleString('en-IN') },
+        { label: 'events found', value: stats.events.toLocaleString('en-IN') },
+        { label: 'avg RQI', value: stats.avgRqi === null ? '—' : String(stats.avgRqi) },
+      ]
+    : [];
+
   return (
     <div className="flex h-viewport flex-col bg-paper text-ink">
       {/* ── Header bar ──────────────────────────────────────────────── */}
@@ -382,14 +408,44 @@ export default function MapPage() {
             {SITE.wordmark}
             <span className="text-saffron">.</span>
           </a>
-          <span className="eyebrow hidden sm:inline">Road quality map</span>
-          <a
-            href="/"
-            className="link-underline ml-auto text-sm font-medium text-ink-2 transition-colors hover:text-ink"
-          >
-            ← Back to home
-          </a>
+          <span className="eyebrow hidden sm:inline">Public panel · India</span>
+          <div className="ml-auto flex items-center gap-5">
+            <a
+              href="/app"
+              className="link-underline text-sm font-semibold text-saffron"
+            >
+              Get the app
+            </a>
+            <a
+              href="/"
+              className="link-underline hidden text-sm font-medium text-ink-2 transition-colors hover:text-ink sm:inline"
+            >
+              ← Home
+            </a>
+          </div>
         </div>
+        {/* Live network stats — quiet single line under the masthead */}
+        {statItems.length > 0 && (
+          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-line px-4 py-2 sm:px-6">
+            {statItems.map((s) => (
+              <p key={s.label} className="text-xs text-ink-3">
+                <span className="font-display text-sm font-bold tabular-nums text-ink">
+                  {s.value}
+                </span>{' '}
+                {s.label}
+              </p>
+            ))}
+            {stats?.lastUpdatedAt && (
+              <p className="ml-auto hidden text-xs text-ink-3 sm:block">
+                Updated{' '}
+                {new Date(stats.lastUpdatedAt).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                })}
+              </p>
+            )}
+          </div>
+        )}
       </header>
 
       {/* ── Map + overlays ──────────────────────────────────────────── */}
@@ -414,20 +470,20 @@ export default function MapPage() {
         {showEmpty && (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-6">
             <div className="pointer-events-auto max-w-sm rounded-2xl border border-line bg-paper/95 p-8 text-center shadow-[0_24px_60px_-24px_rgba(10,10,10,0.4)] backdrop-blur">
-              <p className="eyebrow mb-3">Road quality map</p>
+              <p className="eyebrow mb-3">Public panel</p>
               <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink">
                 {timelineFailed ? 'Map data is unavailable' : 'No road data yet'}
               </h1>
               <p className="mt-3 text-sm leading-relaxed text-ink-2">
                 {timelineFailed
                   ? 'We could not reach the road-quality service. Please check back in a little while.'
-                  : 'The BetterRoads app starts collecting after launch. Every drive will paint this map with the true condition of our roads.'}
+                  : 'Every ride with the BetterRoads app paints this map with the true condition of India’s roads. Be one of the first.'}
               </p>
               <a
-                href="/"
+                href="/app"
                 className="link-underline mt-5 inline-block text-sm font-semibold text-saffron"
               >
-                Join the movement →
+                Get the app →
               </a>
             </div>
           </div>

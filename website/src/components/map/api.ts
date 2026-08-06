@@ -56,6 +56,24 @@ export async function fetchTimeline(): Promise<TimelineData> {
   return res.json();
 }
 
+export type PublicStats = {
+  segments: number;
+  events: number;
+  journeys: number;
+  daysOfData: number;
+  avgRqi: number | null;
+  kmRidden: number;
+  lastUpdatedAt: string | null;
+};
+
+/** Headline aggregates for the public panel; null when the API has none yet. */
+export async function fetchStats(): Promise<PublicStats | null> {
+  const res = await fetch(`${API_URL}/api/public/stats`);
+  if (!res.ok) throw new Error(`stats request failed (${res.status})`);
+  const data = await res.json();
+  return data.stats ?? null;
+}
+
 /** Road segments in the bbox; omit `at` for the current state. */
 export async function fetchRoads(
   bbox: Bbox,

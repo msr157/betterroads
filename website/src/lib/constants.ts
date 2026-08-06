@@ -82,6 +82,20 @@ export const STATS = [
   { value: 63,   prefix: '', suffix: '%',  label: 'of monsoon road complaints go unresolved',        source: 'PLACEHOLDER — verify' },
 ] as const;
 
+/**
+ * Android app distribution. The APK is served from this site (early access /
+ * sideload) while the Play Store listing clears review — keep both in sync
+ * with mobile/app/app.json on every release.
+ */
+export const APP_DOWNLOAD = {
+  version: '1.0.0',
+  apkUrl: '/downloads/BetterRoads.apk',
+  apkName: 'BetterRoads.apk',
+  requirement: 'Android 10 or newer',
+  packageId: 'org.betterroads.app',
+  playStoreUrl: '', // filled when the Play listing goes live
+} as const;
+
 export const SOCIALS = [
   { label: 'Instagram', href: 'https://www.instagram.com/betterroads_org/' },
   { label: 'X / Twitter', href: 'https://x.com/BetterRoadz' },
