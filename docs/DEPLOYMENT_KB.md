@@ -65,6 +65,20 @@ When deploying a new application or changing domains, you may encounter 5XX erro
 
 Whenever setting up a new app like `betterroads.org`, ensure the following:
 - [ ] **Dokploy Domain Config**: Set `https: false` and `certificateType: none` (Cloudflare handles SSL). Port should match the `EXPOSE` port in the Dockerfile (usually 80).
+- [ ] **Dokploy Registry**: assign the `swarm-local` registry (`127.0.0.1:5000`) to the app — without a `registryId` a green deploy silently leaves stale images running on other swarm nodes.
 - [ ] **Dockerfile**: Ensure it uses a robust Healthcheck using `127.0.0.1`.
 - [ ] **Cloudflare DNS**: Contains ONLY the `CNAME` records pointing to the Tunnel UUID. Delete old `A` records.
-- [ ] **Cloudflare Tunnel**: Ingress rules point to `http://172.17.0.1:80` for maximum compatibility across isolated Docker networks.
+- [ ] **Cloudflare Tunnel**: the current tunnel (`564e4c31-a321-4bcb-8f53-6d330ca762c9`, token-managed) needs a public-hostname ingress rule per host; rules currently point at `http://dokploy-traefik:80`.
+
+---
+
+## 🗺️ 4. Current BetterRoads Deployment Map (as of 2026-08-06)
+
+| Piece | Where |
+| --- | --- |
+| Frontend (website + public panel) | Dokploy app `9xfHtE9Fq5Hv7Nhwu7o7_` / swarm `app-override-online-sensor-4hx2u6`, root `Dockerfile`, hosts `betterroads.org`, `www` |
+| Backend API | Dokploy app `h57LneJzqfvP6KqBUJVvG` / swarm `app-compress-multi-byte-card-7nr73c`, `backend/Dockerfile`, routed as path `/api` on `betterroads.org`, `www`, `betterroads.rackops.in`, and `admin.betterroads.org` |
+| Admin dashboard | Dokploy app `GS0TBOtoHCfX-92WgBK4G` / swarm `betterroads-dashboard-pv2edn`, `dashboard/Dockerfile`. Live at `betterroads.rackops.in`; `admin.betterroads.org` is fully wired (tunnel ingress + Dokploy domain) but **waits on a Cloudflare DNS CNAME** `admin → 564e4c31-a321-4bcb-8f53-6d330ca762c9.cfargotunnel.com` (the stored API token lacks DNS-edit rights) |
+| Database | `pg-ha` stack: pg-1 primary + pg-0/pg-2 streaming standbys (re-cloned 2026-08-06 after split-brain); pgpool constrained off `mayank-mainframe-server` (its overlay drops connections — the historic flapping) |
+| AI engine | image `betterroads-ai:latest` built on BetterRoad-VM; nightly `run-all` via `/etc/cron.d/betterroads-ai` (02:30) → logs `/var/log/betterroads-ai.log` |
+| APK | built locally in Docker (see `docs/playstore-submission.md` §8), published as a GitHub Release asset; `betterroads.org/downloads/BetterRoads.apk` 302s to it (nginx) |

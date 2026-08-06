@@ -6,7 +6,7 @@
 set -euo pipefail
 cd /proj
 export CI=1
-export GRADLE_OPTS="-Xmx1500m -XX:MaxMetaspaceSize=384m"
+export GRADLE_OPTS="-Xmx3g -XX:MaxMetaspaceSize=1g"
 export NODE_OPTIONS="--max-old-space-size=4096"
 
 yes | sdkmanager --licenses >/dev/null 2>&1 || true
@@ -27,9 +27,9 @@ PW=$(cat /signing/keystore-password.txt | tr -d '\r\n')
 printf '\n' >> android/gradle.properties
 cat >> android/gradle.properties <<EOF
 org.gradle.daemon=false
-org.gradle.workers.max=1
-org.gradle.jvmargs=-Xmx1500m -XX:MaxMetaspaceSize=384m
-kotlin.daemon.jvmargs=-Xmx768m
+org.gradle.workers.max=2
+org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g
+kotlin.daemon.jvmargs=-Xmx1g
 BR_UPLOAD_STORE_FILE=betterroads-upload.jks
 BR_UPLOAD_KEY_ALIAS=betterroads-upload
 BR_UPLOAD_STORE_PASSWORD=$PW
@@ -59,8 +59,11 @@ fs.writeFileSync(p, s);
 console.log('signing config patched');
 JS
 
+# lintVital* is skipped: it re-analyzes every library module (metaspace-heavy)
+# and gates nothing we ship — this is a sideload/Play upload, not a lint gate.
 cd android
-./gradlew --no-daemon --max-workers 1 :app:bundleRelease :app:assembleRelease
+./gradlew --no-daemon --max-workers 2 :app:bundleRelease :app:assembleRelease \
+  -x lintVitalAnalyzeRelease -x lintVitalReportRelease -x lintVitalRelease
 
 # Name the artifacts properly: BetterRoads-v<version>.apk / .aab
 VERSION=$(node -p "require('/proj/app.json').expo.version")

@@ -12,8 +12,11 @@ sideload testing, you cannot upload it to Play.
 
 | Artifact | Use |
 |---|---|
-| `app-release.aab` | Upload this to Play Console |
-| `app-release.apk` | Install directly on phones for testing (`adb install` or share the file) |
+| `BetterRoads-v<version>.aab` | Upload this to Play Console |
+| `BetterRoads-v<version>.apk` | Direct-download channel: uploaded as a GitHub Release asset named `BetterRoads.apk`; the site links it at `betterroads.org/app` and `betterroads.org/downloads/BetterRoads.apk` 302s to the latest release. Also fine for `adb install` testing |
+
+(`build-release.sh` copies both into `mobile/app/release/` with those names;
+the raw Gradle outputs keep their default `app-release.*` names.)
 
 Both are signed with the **upload keystore** at `mobile/app/signing/betterroads-upload.jks`
 (password in `mobile/app/signing/keystore-password.txt` — **back both up somewhere safe
