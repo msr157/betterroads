@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
+import { clampBboxToIndia } from '../lib/india.js';
 
 /**
  * Public read-only API for the map + timeline UI.
@@ -38,7 +39,12 @@ router.get(
   '/roads',
   zValidator('query', z.object({ ...bboxSchema, at: dayString.optional() })),
   async (c) => {
-    const { minLat, maxLat, minLon, maxLon, at } = c.req.valid('query');
+    const { at, ...requested } = c.req.valid('query');
+
+    // India-only product: queries outside India return an empty (valid) result.
+    const bbox = clampBboxToIndia(requested);
+    if (!bbox) return c.json({ ok: true, at: at ?? null, segments: [] }, 200, CACHE);
+    const { minLat, maxLat, minLon, maxLon } = bbox;
 
     try {
       const rows = at
@@ -101,7 +107,11 @@ router.get(
     }),
   ),
   async (c) => {
-    const { minLat, maxLat, minLon, maxLon, from, to, type } = c.req.valid('query');
+    const { from, to, type, ...requested } = c.req.valid('query');
+
+    const bbox = clampBboxToIndia(requested);
+    if (!bbox) return c.json({ ok: true, events: [] }, 200, CACHE);
+    const { minLat, maxLat, minLon, maxLon } = bbox;
 
     try {
       const rows = await db.execute(sql`
@@ -153,6 +163,30 @@ router.get('/timeline', async (c) => {
   } catch (err) {
     console.error('[public/timeline] query error:', err);
     return c.json({ ok: false, error: 'Failed to load timeline.' }, 500);
+  }
+});
+
+// ─── GET /stats ───────────────────────────────────────────────────────────────
+// Headline aggregates for the public panel: how much road India has scored.
+// Only non-identifying totals — nothing device- or journey-specific.
+
+router.get('/stats', async (c) => {
+  try {
+    const rows = (await db.execute(sql`
+      SELECT (SELECT count(*) FROM road_segments)::int              AS "segments",
+             (SELECT count(*) FROM road_events)::int                AS "events",
+             (SELECT count(*) FROM journeys)::int                   AS "journeys",
+             (SELECT count(DISTINCT day) FROM segment_snapshots)::int AS "daysOfData",
+             (SELECT round(avg(current_rqi))::int FROM road_segments) AS "avgRqi",
+             (SELECT coalesce(round(sum(distance_m) / 1000)::int, 0) FROM journeys)
+                                                                    AS "kmRidden",
+             (SELECT max(last_updated_at) FROM road_segments)::text AS "lastUpdatedAt"
+    `)) as unknown as Array<Record<string, unknown>>;
+
+    return c.json({ ok: true, stats: rows[0] ?? null }, 200, CACHE);
+  } catch (err) {
+    console.error('[public/stats] query error:', err);
+    return c.json({ ok: false, error: 'Failed to load stats.' }, 500);
   }
 });
 

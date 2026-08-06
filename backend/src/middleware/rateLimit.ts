@@ -2,48 +2,47 @@ import type { Context, Next } from 'hono';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-/** Maximum requests per IP per window. */
-const MAX_HITS = 6;
-
-/** Sliding window duration in milliseconds (1 minute). */
-const WINDOW_MS = 60_000;
-
 /**
- * Maximum number of distinct IPs tracked simultaneously.
+ * Maximum number of distinct IPs tracked simultaneously per bucket.
  * If exceeded, stale entries are pruned. If still flooded after purging
  * (active attack with rotating IPs) the map is cleared entirely to prevent
  * unbounded memory growth.
  */
 const MAX_TRACKED = 10_000;
 
-// ─── In-memory store ─────────────────────────────────────────────────────────
+// ─── Per-bucket sliding-window limiter ───────────────────────────────────────
 
-/** Maps IP → sorted array of request timestamps within the current window. */
-const hits = new Map<string, number[]>();
+class SlidingWindowLimiter {
+  /** Maps IP → sorted array of request timestamps within the current window. */
+  private hits = new Map<string, number[]>();
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+  constructor(
+    private maxHits: number,
+    private windowMs: number,
+  ) {}
 
-function purgeStale(now: number): void {
-  for (const [ip, timestamps] of hits) {
-    const fresh = timestamps.filter((t) => now - t < WINDOW_MS);
-    if (fresh.length === 0) hits.delete(ip);
-    else hits.set(ip, fresh);
-  }
-}
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-
-  if (hits.size >= MAX_TRACKED) {
-    purgeStale(now);
-    // Still at capacity after purge — under active IP-rotation attack; reset.
-    if (hits.size >= MAX_TRACKED) hits.clear();
+  private purgeStale(now: number): void {
+    for (const [ip, timestamps] of this.hits) {
+      const fresh = timestamps.filter((t) => now - t < this.windowMs);
+      if (fresh.length === 0) this.hits.delete(ip);
+      else this.hits.set(ip, fresh);
+    }
   }
 
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
-  recent.push(now);
-  hits.set(ip, recent);
-  return recent.length > MAX_HITS;
+  isRateLimited(ip: string): boolean {
+    const now = Date.now();
+
+    if (this.hits.size >= MAX_TRACKED) {
+      this.purgeStale(now);
+      // Still at capacity after purge — under active IP-rotation attack; reset.
+      if (this.hits.size >= MAX_TRACKED) this.hits.clear();
+    }
+
+    const recent = (this.hits.get(ip) ?? []).filter((t) => now - t < this.windowMs);
+    recent.push(now);
+    this.hits.set(ip, recent);
+    return recent.length > this.maxHits;
+  }
 }
 
 /**
@@ -64,15 +63,26 @@ function clientIp(c: Context): string {
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
-/**
- * Per-route rate-limiter middleware.
- * Apply only to mutation endpoints (POST /waitlist/join).
- */
-export async function rateLimitMiddleware(c: Context, next: Next): Promise<Response | void> {
-  const ip = clientIp(c);
-  if (isRateLimited(ip)) {
-    return c.json({ ok: false, error: 'Too many attempts. Please wait a minute.' }, 429);
-  }
-  return next();
+function makeMiddleware(limiter: SlidingWindowLimiter) {
+  return async function rateLimit(c: Context, next: Next): Promise<Response | void> {
+    const ip = clientIp(c);
+    if (limiter.isRateLimited(ip)) {
+      return c.json({ ok: false, error: 'Too many attempts. Please wait a minute.' }, 429);
+    }
+    return next();
+  };
 }
+
+/**
+ * Strict limiter for human-triggered mutations (waitlist join, admin login):
+ * 6 requests per IP per minute.
+ */
+export const rateLimitMiddleware = makeMiddleware(new SlidingWindowLimiter(6, 60_000));
+
+/**
+ * Ingestion limiter for the mobile upload endpoint — its own bucket with
+ * headroom for the app's offline queue flushing many journeys at once on
+ * reconnect, and for carrier CGNAT putting many riders behind one IP.
+ */
+export const ingestRateLimitMiddleware = makeMiddleware(new SlidingWindowLimiter(60, 60_000));
 

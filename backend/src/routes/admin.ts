@@ -5,38 +5,82 @@ import { z } from 'zod';
 import { desc, eq, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { devices, journeys, waitlistSignups } from '../db/schema.js';
+import { rateLimitMiddleware } from '../middleware/rateLimit.js';
+import { nearestCity } from '../lib/india.js';
 
 /**
  * Internal admin API — read-only stats + tables for the BetterRoads
- * admin dashboard (dashboard/). Protected by a single shared bearer
- * token (ADMIN_TOKEN env var); if the var is unset the whole surface
- * is disabled (503) so a forgotten deploy can never expose data.
+ * admin dashboard (dashboard/).
+ *
+ * Auth: the dashboard logs in with username/password
+ * (ADMIN_USERNAME/ADMIN_PASSWORD env, default admin/admin until real
+ * credentials are provisioned) and receives the bearer token every other
+ * endpoint requires. ADMIN_TOKEN env still overrides the token value so
+ * existing deployments keep working.
  */
 
 const router = new Hono();
 
-// ─── Auth middleware ──────────────────────────────────────────────────────────
+// ─── Credentials & token ──────────────────────────────────────────────────────
+
+function adminCredentials() {
+  return {
+    username: process.env.ADMIN_USERNAME ?? 'admin',
+    password: process.env.ADMIN_PASSWORD ?? 'admin',
+  };
+}
 
 /**
- * Constant-time token comparison. Both sides are hashed to a fixed length
- * first so `timingSafeEqual` never throws on length mismatch and the
- * comparison leaks nothing about the token's length or contents.
+ * The bearer token the dashboard uses after login. ADMIN_TOKEN when set;
+ * otherwise derived from the credentials so a credential change invalidates
+ * outstanding sessions.
  */
-function tokensMatch(candidate: string, expected: string): boolean {
+function effectiveToken(): string {
+  if (process.env.ADMIN_TOKEN) return process.env.ADMIN_TOKEN;
+  const { username, password } = adminCredentials();
+  return createHash('sha256')
+    .update(`betterroads-admin:${username}:${password}`)
+    .digest('hex');
+}
+
+/**
+ * Constant-time string comparison. Both sides are hashed to a fixed length
+ * first so `timingSafeEqual` never throws on length mismatch and the
+ * comparison leaks nothing about the secret's length or contents.
+ */
+function secretsMatch(candidate: string, expected: string): boolean {
   const a = createHash('sha256').update(candidate).digest();
   const b = createHash('sha256').update(expected).digest();
   return timingSafeEqual(a, b);
 }
 
-router.use('*', async (c, next) => {
-  const expected = process.env.ADMIN_TOKEN;
-  if (!expected) {
-    return c.json({ ok: false, error: 'admin API disabled' }, 503);
-  }
+// ─── POST /auth/login — before the bearer middleware ─────────────────────────
 
+router.post(
+  '/auth/login',
+  rateLimitMiddleware,
+  zValidator(
+    'json',
+    z.object({ username: z.string().min(1).max(80), password: z.string().min(1).max(200) }),
+  ),
+  async (c) => {
+    const { username, password } = c.req.valid('json');
+    const expected = adminCredentials();
+    const userOk = secretsMatch(username, expected.username);
+    const passOk = secretsMatch(password, expected.password);
+    if (!userOk || !passOk) {
+      return c.json({ ok: false, error: 'Invalid username or password.' }, 401);
+    }
+    return c.json({ ok: true, token: effectiveToken() });
+  },
+);
+
+// ─── Auth middleware (everything below requires the bearer token) ────────────
+
+router.use('*', async (c, next) => {
   const header = c.req.header('authorization') ?? '';
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
-  if (!token || !tokensMatch(token, expected)) {
+  if (!token || !secretsMatch(token, effectiveToken())) {
     return c.json({ ok: false, error: 'Unauthorized.' }, 401);
   }
 
@@ -203,6 +247,115 @@ router.get('/signups', zValidator('query', pageSchema), async (c) => {
   } catch (err) {
     console.error('[admin/signups] query error:', err);
     return c.json({ ok: false, error: 'Failed to load signups.' }, 500);
+  }
+});
+
+// ─── GET /cities ──────────────────────────────────────────────────────────────
+// Real-time geography: where is data coming from right now? Journeys from the
+// last 7 days are attributed to the nearest major Indian city (start point,
+// 60 km radius, else "Other") and grouped, with a live feed of the most
+// recent uploads. The dashboard polls this.
+
+router.get('/cities', async (c) => {
+  try {
+    const rows = (await db.execute(sql`
+      SELECT j.id,
+             j.received_at   AS "receivedAt",
+             j.start_lat     AS "startLat",
+             j.start_lon     AS "startLon",
+             j.vehicle_type  AS "vehicleType",
+             j.distance_m    AS "distanceM",
+             j.rqi_score     AS "rqiScore",
+             j.event_count   AS "eventCount",
+             j.device_id     AS "deviceId"
+      FROM journeys j
+      WHERE j.received_at >= now() - interval '7 days'
+      ORDER BY j.received_at DESC
+      LIMIT 5000
+    `)) as unknown as Array<{
+      id: string;
+      receivedAt: string;
+      startLat: number;
+      startLon: number;
+      vehicleType: string;
+      distanceM: number;
+      rqiScore: number;
+      eventCount: number;
+      deviceId: number;
+    }>;
+
+    const dayAgo = Date.now() - 24 * 3_600_000;
+
+    interface CityAgg {
+      city: string;
+      state: string | null;
+      journeys24h: number;
+      journeys7d: number;
+      events24h: number;
+      devices24h: Set<number>;
+      rqiSum24h: number;
+      lastReceivedAt: string | null;
+    }
+    const byCity = new Map<string, CityAgg>();
+
+    const attributed = rows.map((r) => {
+      const match = nearestCity(r.startLat, r.startLon);
+      const city = match?.name ?? 'Other';
+      const state = match?.state ?? null;
+
+      let agg = byCity.get(city);
+      if (!agg) {
+        agg = {
+          city,
+          state,
+          journeys24h: 0,
+          journeys7d: 0,
+          events24h: 0,
+          devices24h: new Set(),
+          rqiSum24h: 0,
+          lastReceivedAt: null,
+        };
+        byCity.set(city, agg);
+      }
+      agg.journeys7d += 1;
+      if (new Date(r.receivedAt).getTime() >= dayAgo) {
+        agg.journeys24h += 1;
+        agg.events24h += r.eventCount;
+        agg.devices24h.add(r.deviceId);
+        agg.rqiSum24h += r.rqiScore;
+      }
+      // Rows arrive newest-first, so the first hit per city is its latest.
+      if (!agg.lastReceivedAt) agg.lastReceivedAt = r.receivedAt;
+
+      return { ...r, city, state };
+    });
+
+    const cities = [...byCity.values()]
+      .map(({ devices24h, rqiSum24h, ...rest }) => ({
+        ...rest,
+        devices24h: devices24h.size,
+        avgRqi24h: rest.journeys24h > 0 ? Math.round(rqiSum24h / rest.journeys24h) : null,
+      }))
+      .sort((a, b) => b.journeys24h - a.journeys24h || b.journeys7d - a.journeys7d);
+
+    return c.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      cities,
+      recent: attributed.slice(0, 30).map((r) => ({
+        id: r.id,
+        receivedAt: r.receivedAt,
+        city: r.city,
+        state: r.state,
+        vehicleType: r.vehicleType,
+        distanceM: r.distanceM,
+        rqiScore: r.rqiScore,
+        eventCount: r.eventCount,
+      })),
+    });
+  } catch (err) {
+    console.error('[admin/cities] query error:', err);
+    return c.json({ ok: false, error: 'Failed to load city activity.' }, 500);
   }
 });
 

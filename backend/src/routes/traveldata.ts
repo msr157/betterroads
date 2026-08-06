@@ -11,8 +11,9 @@ import {
   roadSegments,
   segmentSnapshots,
 } from '../db/schema.js';
-import { rateLimitMiddleware } from '../middleware/rateLimit.js';
+import { ingestRateLimitMiddleware } from '../middleware/rateLimit.js';
 import { cellCenter, mergeRqi, segmentKeyFor } from '../lib/roadSegments.js';
+import { isInIndia } from '../lib/india.js';
 
 /**
  * POST /user/mobile/traveldata — the mobile app's single end-of-journey
@@ -113,7 +114,7 @@ const MAX_BODY_BYTES = 15 * 1024 * 1024;
 
 router.post(
   '/traveldata',
-  rateLimitMiddleware,
+  ingestRateLimitMiddleware,
   zValidator('json', travelDataSchema, (result, c) => {
     if (!result.success) {
       const first = result.error.issues[0];
@@ -132,6 +133,15 @@ router.post(
 
     if (journey.endedAt < journey.startedAt) {
       return c.json({ ok: false, error: 'Journey ends before it starts.' }, 400);
+    }
+
+    // India-only product: a journey that never touches India is rejected with
+    // a terminal 400 so the app drops it from its retry queue.
+    if (
+      !isInIndia(journey.startLat, journey.startLon) &&
+      !isInIndia(journey.endLat, journey.endLon)
+    ) {
+      return c.json({ ok: false, error: 'BetterRoads only covers roads in India.' }, 400);
     }
 
     try {
@@ -210,7 +220,9 @@ router.post(
             heading: e.heading ?? null,
             segmentKey: segmentKeyFor(e.lat, e.lon),
           })),
-        );
+          // Client-minted IDs: a replayed batch (or one that half-succeeded
+          // before a crash) must not 500 the whole upload.
+        ).onConflictDoNothing();
       }
 
       // ── Segment aggregation + daily snapshot (timeline source) ────────────
