@@ -1,6 +1,6 @@
+# Only real Node workspace packages. mobile/app manages its own npm tree
+# (Expo), ai/ is Python, dashboard/ is deliberately standalone npm (its own
+# Dokploy app), and services/ was removed as dead scaffolding.
 packages:
   - "website"
   - "backend"
-  - "mobile"
-  - "ai"
-  - "services"
