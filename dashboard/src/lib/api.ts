@@ -18,9 +18,36 @@ export class ApiError extends Error {
 }
 
 function defaultMessage(status: number): string {
-  if (status === 401) return 'Invalid or expired token.';
-  if (status === 503) return 'Admin API is disabled on the server (ADMIN_TOKEN not set).';
+  if (status === 401) return 'Invalid or expired session.';
+  if (status === 429) return 'Too many attempts. Please wait a minute.';
   return `Request failed (${status}).`;
+}
+
+/** POST a JSON body without auth (login). */
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, 'Network error — is the API reachable?');
+  }
+
+  let parsed: { ok?: boolean; error?: string } | null = null;
+  try {
+    parsed = await res.json();
+  } catch {
+    // Non-JSON body (proxy error page etc.) — fall through to status message.
+  }
+
+  if (!res.ok || parsed?.ok === false) {
+    throw new ApiError(res.status, parsed?.error ?? defaultMessage(res.status));
+  }
+
+  return parsed as T;
 }
 
 /** GET a JSON endpoint with the admin bearer token attached. */
@@ -130,4 +157,38 @@ export interface SignupsResponse {
   total: number;
   limit: number;
   offset: number;
+}
+
+export interface LoginResponse {
+  ok: true;
+  token: string;
+}
+
+export interface CityRow {
+  city: string;
+  state: string | null;
+  journeys24h: number;
+  journeys7d: number;
+  events24h: number;
+  devices24h: number;
+  avgRqi24h: number | null;
+  lastReceivedAt: string | null;
+}
+
+export interface RecentJourneyRow {
+  id: string;
+  receivedAt: string;
+  city: string;
+  state: string | null;
+  vehicleType: string;
+  distanceM: number;
+  rqiScore: number;
+  eventCount: number;
+}
+
+export interface CitiesResponse {
+  ok: true;
+  generatedAt: string;
+  cities: CityRow[];
+  recent: RecentJourneyRow[];
 }

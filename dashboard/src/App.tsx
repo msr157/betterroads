@@ -4,14 +4,16 @@ import { TOKEN_STORAGE_KEY } from '@/lib/api';
 import { Wordmark } from '@/components/ui';
 import Login from '@/components/Login';
 import Overview from '@/components/Overview';
+import CitiesLive from '@/components/CitiesLive';
 import JourneysTable from '@/components/JourneysTable';
 import DevicesTable from '@/components/DevicesTable';
 import WaitlistTable from '@/components/WaitlistTable';
 
-type Screen = 'overview' | 'journeys' | 'devices' | 'waitlist';
+type Screen = 'overview' | 'live' | 'journeys' | 'devices' | 'waitlist';
 
 const TABS: Array<{ id: Screen; label: string }> = [
   { id: 'overview', label: 'Overview' },
+  { id: 'live', label: 'Live' },
   { id: 'journeys', label: 'Journeys' },
   { id: 'devices', label: 'Devices' },
   { id: 'waitlist', label: 'Waitlist' },
@@ -79,6 +81,7 @@ export default function App() {
 
       <main className="mx-auto max-w-6xl px-6 py-8">
         {screen === 'overview' && <Overview token={token} onAuthError={disconnect} />}
+        {screen === 'live' && <CitiesLive token={token} onAuthError={disconnect} />}
         {screen === 'journeys' && <JourneysTable token={token} onAuthError={disconnect} />}
         {screen === 'devices' && <DevicesTable token={token} onAuthError={disconnect} />}
         {screen === 'waitlist' && <WaitlistTable token={token} onAuthError={disconnect} />}
