@@ -34,7 +34,15 @@
           "isAndroidBackgroundLocationEnabled": false
         }
       ],
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "backgroundColor": "#0a0a0a"
+        }
+      ]
     ]
   }
 }

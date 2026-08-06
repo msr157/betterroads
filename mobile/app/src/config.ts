@@ -6,4 +6,4 @@ export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://betterroads.o
 
 export const TRAVELDATA_ENDPOINT = `${API_URL}/api/user/mobile/traveldata`;
 
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '1.0.0';

@@ -14,6 +14,7 @@ import type { EngineSnapshot } from '@/sensorEngine';
 import { flushQueue, pendingCount, uploadOrQueue } from '@/upload';
 import { VEHICLES } from '@/vehicles';
 import type { VehicleType } from '@/types';
+import { theme } from '@/theme';
 
 type Phase = 'idle' | 'recording' | 'uploading';
 
@@ -138,7 +139,7 @@ export default function App() {
           style={[styles.mainButton, recording && styles.mainButtonStop]}
         >
           {phase === 'uploading' ? (
-            <ActivityIndicator color="#0a0a0a" />
+            <ActivityIndicator color={theme.ink} />
           ) : (
             <Text style={styles.mainButtonText}>
               {recording ? 'End journey' : 'Start journey'}
@@ -171,18 +172,14 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-const SAFFRON = '#ff9933';
-const INK = '#f5f2ec';
-const INK_DIM = '#a8a29a';
-
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0a0a0a' },
+  root: { flex: 1, backgroundColor: theme.bg },
   scroll: { padding: 24, paddingTop: 64, gap: 12 },
-  wordmark: { color: INK, fontSize: 32, fontWeight: '800', letterSpacing: -1 },
-  accent: { color: SAFFRON },
-  tagline: { color: INK_DIM, fontSize: 15, marginBottom: 16 },
+  wordmark: { color: theme.ink, fontSize: 32, fontWeight: '800', letterSpacing: -1 },
+  accent: { color: theme.saffron },
+  tagline: { color: theme.ink2, fontSize: 15, marginBottom: 16 },
   sectionLabel: {
-    color: INK_DIM,
+    color: theme.ink3,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 2,
@@ -192,17 +189,18 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderWidth: 1,
-    borderColor: '#2e2b27',
+    borderColor: theme.line,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  chipActive: { borderColor: SAFFRON, backgroundColor: '#2a1d0e' },
-  chipText: { color: INK_DIM, fontSize: 13, fontWeight: '600' },
-  chipTextActive: { color: SAFFRON },
+  chipActive: { borderColor: theme.saffronDeep, backgroundColor: theme.saffronTint },
+  chipText: { color: theme.ink2, fontSize: 13, fontWeight: '600' },
+  chipTextActive: { color: theme.saffronLift },
   card: {
     borderWidth: 1,
-    borderColor: '#2e2b27',
+    borderColor: theme.line,
+    backgroundColor: theme.bg2,
     borderRadius: 16,
     padding: 16,
     marginTop: 16,
@@ -210,19 +208,19 @@ const styles = StyleSheet.create({
   },
   statRow: { flexDirection: 'row', gap: 12 },
   stat: { flex: 1 },
-  statLabel: { color: INK_DIM, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' },
-  statValue: { color: INK, fontSize: 26, fontWeight: '700', marginTop: 2 },
-  warning: { color: '#fab219', fontSize: 13, lineHeight: 18 },
+  statLabel: { color: theme.ink3, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' },
+  statValue: { color: theme.ink, fontSize: 26, fontWeight: '700', marginTop: 2 },
+  warning: { color: theme.warn, fontSize: 13, lineHeight: 18 },
   mainButton: {
-    backgroundColor: SAFFRON,
+    backgroundColor: theme.saffronDeep,
     borderRadius: 999,
     alignItems: 'center',
     paddingVertical: 16,
     marginTop: 24,
   },
-  mainButtonStop: { backgroundColor: '#d03b3b' },
-  mainButtonText: { color: '#0a0a0a', fontSize: 17, fontWeight: '800' },
-  message: { color: INK, fontSize: 14, lineHeight: 20, marginTop: 8 },
-  pending: { color: INK_DIM, fontSize: 13 },
-  footnote: { color: INK_DIM, fontSize: 12, lineHeight: 18, marginTop: 24 },
+  mainButtonStop: { backgroundColor: theme.danger },
+  mainButtonText: { color: theme.ink, fontSize: 17, fontWeight: '800' },
+  message: { color: theme.ink, fontSize: 14, lineHeight: 20, marginTop: 8 },
+  pending: { color: theme.ink2, fontSize: 13 },
+  footnote: { color: theme.ink3, fontSize: 12, lineHeight: 18, marginTop: 24 },
 });

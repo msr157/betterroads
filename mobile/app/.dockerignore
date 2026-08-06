@@ -4,7 +4,5 @@ dist/
 web-build/
 android/
 ios/
-release/
 *.log
 .env*.local
-signing/
