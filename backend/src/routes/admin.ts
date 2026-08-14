@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { createDecipheriv } from 'crypto';
 import { db } from '../db/index.js';
 import { administrators, adminSessions, contractors, devices, journeys, roadContracts, waitlistSignups, feedbacks } from '../db/schema.js';
 import { rateLimitMiddleware } from '../middleware/rateLimit.js';
@@ -26,10 +27,30 @@ router.post(
   rateLimitMiddleware,
   zValidator(
     'json',
-    z.object({ username: z.string().min(1).max(80), password: z.string().min(1).max(200) }),
+    z.object({ payload: z.string() }),
   ),
   async (c) => {
-    const { username, password } = c.req.valid('json');
+    const { payload } = c.req.valid('json');
+    let username = '';
+    let password = '';
+    try {
+      const [ivHex, encHex] = payload.split(':');
+      if (!ivHex || !encHex) throw new Error('Malformed payload');
+      const key = Buffer.from("BetterRoadsAdminSecureKey2026!@#", "utf8");
+      const iv = Buffer.from(ivHex, "hex");
+      const encryptedText = Buffer.from(encHex, "hex");
+      const decipher = createDecipheriv('aes-256-gcm', key, iv);
+      const authTag = encryptedText.subarray(encryptedText.length - 16);
+      const data = encryptedText.subarray(0, encryptedText.length - 16);
+      decipher.setAuthTag(authTag);
+      let decrypted = decipher.update(data, undefined, 'utf8');
+      decrypted += decipher.final('utf8');
+      const parsed = JSON.parse(decrypted);
+      username = parsed.username;
+      password = parsed.password;
+    } catch (e) {
+      return c.json({ ok: false, error: 'Invalid payload.' }, 400);
+    }
     const [administrator] = await db.select().from(administrators).where(eq(administrators.username, username.trim())).limit(1);
     if (!administrator || !(await verifyPassword(password, administrator.passwordHash))) {
       return c.json({ ok: false, error: 'Invalid username or password.' }, 401);

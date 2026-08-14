@@ -10,11 +10,24 @@ export default function Login({ onConnect }: { onConnect: (token: string) => voi
 
   const ready = username.trim().length > 0 && password.length > 0;
 
-  async function hashString(message: string) {
-    const msgUint8 = new TextEncoder().encode(message);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  async function encryptPayload(data: any) {
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      enc.encode("BetterRoadsAdminSecureKey2026!@#"), // 32 bytes
+      { name: "AES-GCM" },
+      false,
+      ["encrypt"]
+    );
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      keyMaterial,
+      enc.encode(JSON.stringify(data))
+    );
+    const ivHex = Array.from(iv).map((b) => b.toString(16).padStart(2, '0')).join('');
+    const encHex = Array.from(new Uint8Array(encrypted)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    return ivHex + ":" + encHex;
   }
 
   async function submit(e: FormEvent) {
@@ -24,11 +37,8 @@ export default function Login({ onConnect }: { onConnect: (token: string) => voi
     setBusy(true);
     setError('');
     try {
-      const hashedPassword = await hashString(password);
-      const res = await apiPost<LoginResponse>('/api/admin/auth/login', {
-        username: username.trim(),
-        password: hashedPassword,
-      });
+      const payload = await encryptPayload({ username: username.trim(), password });
+      const res = await apiPost<LoginResponse>('/api/admin/auth/login', { payload });
       onConnect(res.token);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
