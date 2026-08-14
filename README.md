@@ -9,7 +9,9 @@
 
 ## Overview
 
-**BetterRoads** is a production-ready platform for road infrastructure intelligence. It combines IoT sensor data, satellite imagery analysis, and machine learning to predict road degradation before it becomes a costly emergency — reducing maintenance spend by up to 60%.
+**BetterRoads** (v1.2.0) is a production-ready platform for road infrastructure intelligence. It combines mobile telemetry sensing, IoT sensor data, and machine learning to predict road degradation before it becomes a costly emergency. 
+
+BetterRoads features a **fully compliant, open-source mapping stack** (utilizing MapLibre, CartoDB borderless tiles, and official boundary GeoJSONs) ensuring that maps respect regional mapping laws without relying on proprietary or paid APIs.
 
 ---
 
@@ -19,9 +21,10 @@
 |---|---|
 | 🤖 AI Condition Mapping | CV + ML classification of road surface conditions |
 | ⚡ Predictive Maintenance | Forecast failures weeks in advance |
-| 📡 Real-Time Monitoring | Live IoT sensor + crowd-sourced reporting |
-| 📊 Analytics Dashboard | KPI tracking and condition trend reports |
-| 👥 Citizen Reporting | Mobile portal for public hazard reports |
+| 📡 Real-Time Monitoring | Live IoT sensor + crowd-sourced telemetry reporting |
+| 🗺️ Compliant Mapping | Open-source map stack strictly respecting regional political boundaries |
+| 🗣️ Advanced Feedback | Spam-protected, profile-gated citizen feedback with automatic metadata capture |
+| 📊 Analytics Dashboard | KPI tracking, live contract analytics, and condition trend reports |
 | 🔧 Work Order Automation | Auto-generate and route repair orders |
 
 ---

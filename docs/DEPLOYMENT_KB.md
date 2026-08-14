@@ -10,7 +10,7 @@ The production pipeline utilizes a modern GitOps approach with Docker Swarm and 
 
 1. **Source Control (GitHub/Gitea)**: Code is pushed to the `main` branch.
 2. **CI/CD (Dokploy)**: 
-   - Dokploy catches the webhook from GitHub.
+   - Dokploy catches the automated webhook from GitHub upon any push to `main`.
    - It builds each application from its configured Dockerfile: root for the website, `backend/Dockerfile`, and `dashboard/Dockerfile`.
    - It updates the Docker Swarm service for the application (e.g., `app-override-online-sensor-4hx2u6`).
 3. **Internal Routing (Traefik)**:
@@ -81,7 +81,22 @@ Whenever setting up a new app like `betterroads.org`, ensure the following:
 | Admin dashboard | Dokploy app `GS0TBOtoHCfX-92WgBK4G` / swarm `betterroads-dashboard-pv2edn`, `dashboard/Dockerfile`. Live at both `admin.betterroads.org` and `betterroads.rackops.in`; the Cloudflare DNS CNAME and tunnel route are working as of 2026-08-14. |
 | Database | `pg-ha` stack: pg-1 primary + pg-0/pg-2 streaming standbys (re-cloned 2026-08-06 after split-brain); pgpool constrained off `mayank-mainframe-server` (its overlay drops connections — the historic flapping) |
 | AI engine | image `betterroads-ai:latest` built on BetterRoad-VM; nightly `run-all` via `/etc/cron.d/betterroads-ai` (02:30) → logs `/var/log/betterroads-ai.log` |
-| APK/AAB | run `npm run build:apk` with Docker and signing files; signed artifacts land in `mobile/app/release/` (see the mobile README) |
+| AI engine | image `betterroads-ai:latest` built on BetterRoad-VM; nightly `run-all` via `/etc/cron.d/betterroads-ai` (02:30) → logs `/var/log/betterroads-ai.log` |
+| APK/AAB | Built via `npm run build:apk` (outputs to `mobile/app/release/`). Published manually via GitHub CLI (`gh release create`). |
+
+## 🚀 5. Mobile App Releases
+
+While the backend, admin dashboard, and website automatically deploy via Dokploy webhooks when code is pushed to `main`, the mobile Android app must be published manually to GitHub Releases.
+
+**Release Pipeline:**
+1. Generate the signed APK by running `npm run build:apk`.
+2. Compute the SHA-256 hash of the generated APK (e.g., via `Get-FileHash` in PowerShell).
+3. Draft release notes matching the established style, containing the version, new features, and the SHA-256 hash.
+4. Execute the GitHub CLI release command using an authenticated `gh` session:
+   ```bash
+   gh release create vX.Y.Z "path/to/BetterRoads.apk" --title "BetterRoads vX.Y.Z" --notes-file "path/to/release_notes.md"
+   ```
+5. The public website automatically links `/downloads/BetterRoads.apk` to the latest GitHub release asset.
 
 ## Identity deployment variables
 

@@ -39,26 +39,21 @@ The exact arrangement is:
 | Concern | Current implementation |
 | --- | --- |
 | Browser map renderer | MapLibre GL, an open-source renderer |
-| Public map tiles | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` |
+| Public map tiles | CartoDB `light_nolabels` + CartoDB `light_only_labels` |
 | Admin map tiles | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` |
-| Attribution | `© OpenStreetMap contributors` on both map panels |
+| Border compliance | DataMeet India composite GeoJSON (`india-simplified.geojson`) overlay |
+| Attribution | `© OpenStreetMap contributors, © CARTO` |
 | Road-condition overlays | BetterRoads GeoJSON from PostgreSQL through the API |
 | Contract overlays | BetterRoads-published GeoJSON, rendered above OSM |
 | Google integration | Optional Google identity linking in test mobile builds only; it is not a map provider |
 
 There is one important distinction:
 
-- The **visible basemap is already OSM**.
+- The **visible basemap on the public map uses CartoDB's borderless tiles with an official India boundary GeoJSON overlay**. This architectural decision ensures strict compliance with Indian mapping laws (showing the entirety of Jammu, Kashmir, and Ladakh) without relying on proprietary or paid API keys.
 - The road aggregation engine does **not yet map-match GPS traces to OSM way
   IDs**. It currently groups observations into quantized geographic cells of
   roughly 100 m. OSM way/segment map-matching remains a data-engine roadmap
   item and is needed to avoid collisions where two roads cross the same cell.
-
-For higher traffic, keep OSM as the data source but move away from relying on
-the community `tile.openstreetmap.org` endpoint as an unlimited production CDN.
-The acceptable future choices are an OSM tile cache/server operated by
-BetterRoads or a provider contract that serves OSM-derived tiles with correct
-attribution. Do not silently switch to a proprietary basemap.
 
 ## 3. System connection diagram
 
@@ -135,6 +130,13 @@ Public data is intentionally privacy-limited:
   are excluded from public queries.
 - Road contracts appear publicly only when an administrator marks them as
   published.
+
+### Advanced Feedback System
+The public website and mobile app feature a unified feedback subsystem:
+- Submissions require a user to have a completed profile (Name & Email) to prevent anonymous spam.
+- An integrated Math CAPTCHA prevents automated bot submissions.
+- Silent metadata capture tags each submission with the `source` (website vs app), `deviceOs`, and `location` (timezone) to assist in triage without encumbering the user.
+- On mobile devices, the Map Legend and Stats panels collapse into Floating Action Buttons (FABs) to prevent overlapping over the map view.
 
 ## 6. Mobile app user flow
 
@@ -283,6 +285,7 @@ erDiagram
 | `admin_sessions` | Revocable hashed admin sessions |
 | `contractors` | Contractor directory |
 | `road_contracts` | Tender/contract/accountability records and optional geometry |
+| `feedbacks` | User-submitted feedback/bug reports containing metadata (OS/location) |
 
 ## 9. AI/data engine
 
