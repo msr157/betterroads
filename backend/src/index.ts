@@ -16,6 +16,7 @@ import { db } from './db/index.js';
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 const app = new Hono();
+const release = 'identity-admin-v1';
 
 // ─── Global middleware ────────────────────────────────────────────────────────
 
@@ -32,10 +33,10 @@ app.use('*', corsMiddleware);
 
 /** Internal /health is used by Docker healthcheck, /api/health is used for debugging */
 app.get('/health', (c) => {
-  return c.json({ ok: true, service: 'betterroads-api' });
+  return c.json({ ok: true, service: 'betterroads-api', release });
 });
 app.get('/api/health', (c) => {
-  return c.json({ ok: true, service: 'betterroads-api' });
+  return c.json({ ok: true, service: 'betterroads-api', release });
 });
 
 /** Waitlist endpoints under /api/waitlist */
