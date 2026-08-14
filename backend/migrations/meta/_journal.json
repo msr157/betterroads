@@ -36,6 +36,27 @@
       "when": 1785573537863,
       "tag": "0004_certain_magus",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786653000000,
+      "tag": "0005_identity_contracts",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786723200000,
+      "tag": "0006_accepted_contributions",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786723200001,
+      "tag": "0007_schema_snapshot",
+      "breakpoints": true
     }
   ]
 }

@@ -6,16 +6,20 @@ sending the full collected dataset in a single batch (~10 MB typical, 15 MB hard
 ```
 POST /user/mobile/traveldata        (also served at /api/user/mobile/traveldata)
 Content-Type: application/json
+Authorization: Bearer <mobile-session>
 ```
 
-No authentication. The device is identified by an **install-time UUID** minted by
-the app on first launch. (The original spec said MAC ID — Android ≥ 6 does not
-expose MAC addresses to apps, so a persisted UUID is the equivalent stable,
-auth-free identifier.)
+Authentication is required. Ownership is resolved solely from the bearer
+session, never client-supplied identity fields. The device retains its
+install-time UUID for installation identity. Existing anonymous rows remain
+unowned and are not claimed when a person later signs in. Retrying a journey ID
+owned by another account returns HTTP 409.
 
 Uploads are **idempotent on `journey.id`**: the app can retry the same payload
-safely; the server replies `{ ok: true, duplicate: true }` for an already-stored
-journey.
+safely; the server replies `{ ok: true, duplicate: true }` only for an
+already-accepted journey owned by the same account. Ingestion is transactional,
+and the server sets `accepted_at` after raw storage and road aggregation finish.
+Only accepted authenticated journeys are eligible for contributor rankings.
 
 ## Payload
 
@@ -82,9 +86,10 @@ every historical journey as detection and map-matching improve.
 { "ok": true, "duplicate": false, "journeyId": "...", "segmentsProcessed": 41, "eventsStored": 7 }
 ```
 
-Errors: `400` validation (message names the offending field), `413` payload
-too large, `429` rate-limited, `500` server error. On any non-2xx except `400`,
-the app should keep the journey queued and retry with backoff.
+Errors: `400` validation (message names the offending field), `409` ownership
+or incomplete-ingestion conflict, `413` payload too large, `429` rate-limited,
+and `500` server error. The app retains both validation failures and conflicts
+for inspection instead of reporting them as uploaded; transient failures retry.
 
 ## Server-side processing (v1)
 

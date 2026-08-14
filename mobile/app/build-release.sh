@@ -6,6 +6,7 @@
 set -euo pipefail
 cd /proj
 export CI=1
+export NODE_ENV=production
 export GRADLE_OPTS="-Xmx3g -XX:MaxMetaspaceSize=1g"
 export NODE_OPTIONS="--max-old-space-size=4096"
 
@@ -70,5 +71,7 @@ VERSION=$(node -p "require('/proj/app.json').expo.version")
 mkdir -p /proj/release
 cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads-v${VERSION}.apk"
 cp app/build/outputs/bundle/release/app-release.aab "/proj/release/BetterRoads-v${VERSION}.aab"
+# Stable filename used by the website's GitHub Releases redirect.
+cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads.apk"
 echo "══════ ARTIFACTS ══════"
 ls -la /proj/release/

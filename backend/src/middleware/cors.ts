@@ -15,7 +15,7 @@ function allowedOrigins(): string[] {
 
 export const corsMiddleware = cors({
   origin: allowedOrigins(),
-  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400,
 });

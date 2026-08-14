@@ -5,8 +5,7 @@ ride and uploads one `schemaVersion: 1` payload per completed journey to
 `POST /api/user/mobile/traveldata` (contract: `docs/api-contracts/traveldata.md`).
 
 React Native + Expo (SDK 57), TypeScript. One codebase for Android and iOS —
-the Kotlin prototype this replaces lives at `mobile/android-prototype/` and
-remains the reference for the sensor math.
+The production sensor formulas are maintained in `src/sensorEngine.ts`.
 
 ## Run it
 
@@ -17,7 +16,24 @@ npx expo start            # Expo Go on a real phone (sensors need hardware)
 EXPO_PUBLIC_API_URL=http://<your-lan-ip>:3000 npx expo start
 ```
 
+Google authentication also requires `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` and
+`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`. Configure Google Cloud for Android package
+`org.betterroads.app` with the release/debug SHA-1 certificates. The Expo deep
+link redirect is `betterroads://oauth`. Bearer credentials are encrypted by
+Expo Secure Store; queued offline journeys upload only after session restore.
+Expo Auth Session uses these OAuth client IDs directly; Firebase and
+`google-services.json` are not required for this sign-in flow. Copy
+`.env.example` to `.env` for local/release configuration.
+
 `npm run typecheck` — strict tsc, no emit.
+
+## Signed release
+
+Place `betterroads-upload.jks` and `keystore-password.txt` under
+`mobile/app/signing/` (or set `BETTERROADS_SIGNING_DIR`), start Docker, and run
+`npm run build:apk` at the repository root. Outputs are
+`mobile/app/release/BetterRoads-v<version>.apk`, `.aab`, and the stable
+`BetterRoads.apk` filename used for GitHub Releases.
 
 ## What's implemented
 
@@ -30,16 +46,18 @@ EXPO_PUBLIC_API_URL=http://<your-lan-ip>:3000 npx expo start
   (navigation accuracy) into the engine; assembles the upload payload.
 - **`src/upload.ts`** — immediate upload with an on-disk offline queue,
   flushed on next launch; idempotent on `journey.id`.
-- **`src/deviceId.ts`** — install-time UUID; no accounts, no PII.
-- **`App.tsx`** — v1 single screen: vehicle picker → start → live RQI/events →
-  end → upload.
+- **`src/deviceId.ts`** — install-time UUID linked to the authenticated account
+  only when a journey is uploaded.
+- **`src/auth.ts`** — Google token exchange, encrypted session/profile cache,
+  offline restoration, profile management, logout, and account deletion.
+- **`App.tsx`** — required sign-in and profile editor around the preserved
+  journey screen: vehicle picker → start → live RQI/events → end → upload.
 
 ## Not yet (deliberate v1 cuts)
 
 - **Background recording** — currently records with the app open (navigation
   style). Needs `expo-location` background updates + Android foreground
   service in a dev build; next milestone.
-- Map/history/leaderboard screens (exist in the Kotlin prototype as design
-  reference).
+- In-app map/history/leaderboard screens; these are available on the website.
 - Raw `sensorWindows` in the payload (schema supports it; app sends the
   processed segments/events/path only for now).

@@ -190,4 +190,108 @@ router.get('/stats', async (c) => {
   }
 });
 
+router.get(
+  '/leaderboard',
+  zValidator('query', z.object({ period: z.enum(['monthly', 'lifetime']).default('monthly'), limit: z.coerce.number().int().min(1).max(100).default(50) })),
+  async (c) => {
+    const { period, limit } = c.req.valid('query');
+    try {
+      const rows = await db.execute(sql`
+        SELECT u.id, u.name,
+               round(sum(mapped.distance_m) / 1000.0, 2)::float AS "mappedKm",
+               count(j.id)::int AS "journeyCount",
+               min(j.started_at)::text AS "contributingSince",
+               max(j.ended_at)::text AS "lastContributionAt"
+        FROM users u
+        JOIN journeys j ON j.user_id = u.id
+        JOIN LATERAL (
+          SELECT coalesce(sum((segment->>'lengthM')::numeric), 0) AS distance_m
+          FROM journey_raw jr
+          LEFT JOIN LATERAL jsonb_array_elements(coalesce(jr.payload->'segments', '[]'::jsonb)) segment ON true
+          WHERE jr.journey_id = j.id AND segment ? 'lengthM'
+        ) mapped ON true
+        WHERE u.public_leaderboard = true
+          AND j.accepted_at IS NOT NULL
+          ${period === 'monthly' ? sql`AND j.ended_at >= date_trunc('month', now())` : sql``}
+        GROUP BY u.id, u.name
+        HAVING sum(mapped.distance_m) > 0
+        ORDER BY sum(mapped.distance_m) DESC, u.id ASC
+        LIMIT ${limit}
+      `);
+      return c.json({ ok: true, period, contributors: rows }, 200, CACHE);
+    } catch (err) {
+      console.error('[public/leaderboard]', err);
+      return c.json({ ok: false, error: 'Failed to load leaderboard.' }, 500);
+    }
+  },
+);
+
+router.get('/contributors/:id', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id) || id < 1) return c.json({ ok: false, error: 'Invalid contributor.' }, 400);
+  const rows = await db.execute(sql`
+    SELECT u.id, u.name,
+           round(sum(mapped.distance_m) / 1000.0, 2)::float AS "mappedKm",
+           count(j.id)::int AS "journeyCount",
+           min(j.started_at)::text AS "contributingSince",
+           max(j.ended_at)::text AS "lastContributionAt"
+    FROM users u JOIN journeys j ON j.user_id = u.id
+    JOIN LATERAL (
+      SELECT coalesce(sum((segment->>'lengthM')::numeric), 0) AS distance_m
+      FROM journey_raw jr
+      LEFT JOIN LATERAL jsonb_array_elements(coalesce(jr.payload->'segments', '[]'::jsonb)) segment ON true
+      WHERE jr.journey_id = j.id AND segment ? 'lengthM'
+    ) mapped ON true
+    WHERE u.id = ${id} AND u.public_leaderboard = true AND j.accepted_at IS NOT NULL
+    GROUP BY u.id, u.name
+  `);
+  if (!rows[0]) return c.json({ ok: false, error: 'Contributor not found.' }, 404);
+  return c.json({ ok: true, contributor: rows[0] }, 200, CACHE);
+});
+
+router.get('/contributors', zValidator('query', z.object({ limit: z.coerce.number().int().min(1).max(100).default(50) })), async (c) => {
+  const rows = await db.execute(sql`
+    SELECT u.id, u.name,
+           round(sum(mapped.distance_m) / 1000.0, 2)::float AS "mappedKm",
+           count(j.id)::int AS "journeyCount",
+           min(j.started_at)::text AS "contributingSince",
+           max(j.ended_at)::text AS "lastContributionAt"
+    FROM users u JOIN journeys j ON j.user_id = u.id
+    JOIN LATERAL (
+      SELECT coalesce(sum((segment->>'lengthM')::numeric), 0) AS distance_m
+      FROM journey_raw jr
+      LEFT JOIN LATERAL jsonb_array_elements(coalesce(jr.payload->'segments', '[]'::jsonb)) segment ON true
+      WHERE jr.journey_id = j.id AND segment ? 'lengthM'
+    ) mapped ON true
+    WHERE u.public_leaderboard = true AND j.accepted_at IS NOT NULL
+    GROUP BY u.id, u.name
+    HAVING sum(mapped.distance_m) > 0
+    ORDER BY sum(mapped.distance_m) DESC, u.id ASC
+    LIMIT ${c.req.valid('query').limit}
+  `);
+  return c.json({ ok: true, contributors: rows }, 200, CACHE);
+});
+
+router.get('/contracts', async (c) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT rc.id, rc.road_name AS "roadName", rc.city, rc.ward,
+             rc.tender_reference AS "tenderReference", rc.details,
+             rc.start_date::text AS "startDate", rc.end_date::text AS "endDate",
+             rc.budget, rc.status, rc.guarantee_until::text AS "guaranteeUntil",
+             rc.notes, rc.geometry, rc.published_at::text AS "publishedAt",
+             c.id AS "contractorId", c.name AS "contractorName",
+             c.registration_number AS "contractorRegistrationNumber"
+      FROM road_contracts rc JOIN contractors c ON c.id = rc.contractor_id
+      WHERE rc.published = true
+      ORDER BY rc.published_at DESC NULLS LAST, rc.id DESC
+      LIMIT 1000
+    `);
+    return c.json({ ok: true, contracts: rows }, 200, CACHE);
+  } catch (err) {
+    console.error('[public/contracts]', err);
+    return c.json({ ok: false, error: 'Failed to load contracts.' }, 500);
+  }
+});
+
 export { router as publicRoadsRouter };

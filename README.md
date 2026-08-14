@@ -31,9 +31,16 @@
 ```bash
 git clone https://github.com/mayank/betterroads.git
 cd betterroads
-python -m http.server 3000 --directory src
-# → http://localhost:3000
+pnpm install
+pnpm --filter @betterroads/backend dev
+pnpm --filter website dev
+# dashboard and mobile use their own npm installs; see their READMEs
 ```
+
+The repository contains four deployable packages: `backend`, `website`,
+`dashboard`, and the Expo app in `mobile/app`. Identity and migration setup is
+documented in `docs/identity-and-admin.md`; signed Android releases use
+`npm run build:apk` and are written to `mobile/app/release/`.
 
 Or with Docker:
 ```bash
@@ -82,16 +89,13 @@ Gitea: `DOKPLOY_WEBHOOK_URL`
 
 ```
 betterroads/
-├── .github/workflows/mirror.yml
-├── .gitea/workflows/ci.yml
-├── src/index.html
-├── src/style.css
-├── src/app.js
-├── Dockerfile
-├── docker-compose.yml
-├── nginx.conf
-├── docs/branch-strategy.md
-└── README.md
+├── backend/       Hono API, PostgreSQL schema and migrations
+├── dashboard/     authenticated administrator SPA
+├── website/       public website and road map
+├── mobile/app/    Expo Android/iOS application
+├── ai/            Python analysis pipeline and tests
+├── scripts/       release build wrappers
+└── docs/          deployment, contracts, identity and release guides
 ```
 
 ---

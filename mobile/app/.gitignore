@@ -8,3 +8,4 @@ release/
 *.log
 .env*.local
 signing/
+google-services.json

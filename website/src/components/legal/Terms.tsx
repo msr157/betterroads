@@ -2,8 +2,8 @@ import LegalLayout, { Section } from '@/components/legal/LegalLayout';
 import { SITE, LEGAL } from '@/lib/constants';
 
 /**
- * Terms of Service — India. Written for the current pre-launch phase: a
- * waitlist / teaser site (no app or paid service yet). Governed by Indian law
+ * Terms of Service — India. Covers the website, public map, waitlist, and
+ * mobile contribution service. Governed by Indian law
  * incl. the Information Technology Act, 2000. NOT a substitute for review by a
  * qualified Indian lawyer before launch.
  */
@@ -11,7 +11,7 @@ export default function Terms() {
   return (
     <LegalLayout
       title="Terms of Service"
-      intro={`These terms govern your use of the ${SITE.name} website and the pre-launch waitlist. Please read them carefully. By using this website or joining the waitlist, you agree to these terms.`}
+      intro={`These terms govern your use of the ${SITE.name} website, public road map, waitlist, and mobile app. Please read them carefully. By using these services, you agree to these terms.`}
     >
       <Section n={1} title="Who we are">
         <p>
@@ -25,11 +25,10 @@ export default function Terms() {
 
       <Section n={2} title="What this website is">
         <p>
-          {SITE.name} is a citizen movement working towards better roads in India. At present this
-          website is a <strong>pre-launch and waitlist page</strong>. It lets you learn about the
-          project and register your interest to be notified when we launch. The product and app
-          described here are <strong>not yet available</strong>, and features, timelines, and the
-          launch date (currently 15 August 2026) may change or be cancelled without notice.
+          {SITE.name} is a citizen road-intelligence service for India. The website provides project
+          information, a waitlist, and a public map. The mobile app records journeys you explicitly
+          start and submits measurements used to score roads. Scores, detections, contract records,
+          and contribution rankings may be provisional and can change as processing improves.
         </p>
       </Section>
 

@@ -24,12 +24,12 @@ function defaultMessage(status: number): string {
 }
 
 /** POST a JSON body without auth (login). */
-export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+export async function apiPost<T>(path: string, body: unknown, token?: string): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify(body),
     });
   } catch {
@@ -47,6 +47,13 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     throw new ApiError(res.status, parsed?.error ?? defaultMessage(res.status));
   }
 
+  return parsed as T;
+}
+
+export async function apiRequest<T>(path: string, token: string, method: string, body?: unknown, contentType = 'application/json'): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType }, body: body === undefined ? undefined : contentType === 'application/json' ? JSON.stringify(body) : String(body) });
+  const parsed = await res.json().catch(() => ({}));
+  if (!res.ok || parsed.ok === false) throw new ApiError(res.status, parsed.error ?? defaultMessage(res.status));
   return parsed as T;
 }
 
@@ -109,6 +116,7 @@ export interface JourneyRow {
   vehicleType: string;
   rqiScore: number;
   eventCount: number;
+  acceptedAt: string | null;
   deviceUuid: string;
   devicePlatform: string;
   deviceModel: string | null;

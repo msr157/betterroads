@@ -33,7 +33,7 @@ just the upload key, so it can be reset if ever lost.
 | 64-bit native code | ✅ RN 0.86 ships arm64-v8a |
 | Privacy policy URL on the store listing **and** in-app reachable | ✅ https://betterroads.org/privacy — updated with a "BetterRoads mobile app" section covering location, motion sensors, install UUID. **Deploy the website before submitting.** |
 | Data safety form | Fill using §4 below |
-| Account deletion policy | N/A — the app has no accounts/sign-in |
+| Account deletion policy | Required: Google sign-in is mandatory. Users can delete the account in Profile; use https://betterroads.org/delete-account as the Play web URL. |
 | Background location declaration | N/A — we request foreground `ACCESS_FINE_LOCATION` only, no background location, no foreground service. This avoids Play's hardest review track. |
 | Sensitive-permission video declaration | N/A (only needed for background location / SMS / call log) |
 | Ads declaration | "No ads" |
@@ -61,14 +61,18 @@ just the upload key, so it can be reset if ever lost.
 |---|---|---|---|---|
 | Location → Precise location | Yes | No | App functionality | Collection is optional (only during a journey the user starts). Not ephemeral (stored). |
 | Device or other IDs | Yes | No | App functionality | Random install UUID; not the advertising ID. |
+| Personal info → Name | Yes | No | Account management, optional public leaderboard | Required display name; public only after explicit opt-in. |
+| Personal info → Email address | Yes | No | Account management, security | Immutable verified Google email; never public. |
+| Personal info → Other info | Optional | No | Profile management | Optional DOB, gender, and city; never public. |
 | App activity → Other user actions | Yes | No | App functionality | Journey recordings: vehicle type, detected road events, road-quality scores. |
 
 - "Shared" in Play's definition means transferred to third parties — we don't.
   Publishing **aggregated, non-identifying** road scores on our public map does
   not count as sharing user data.
 - Data encrypted in transit? **Yes** (HTTPS).
-- Can users request deletion? **Yes** — via privacy@ email (stated in the
-  privacy policy). When the in-app "delete my data" screen ships, update this.
+- Can users request deletion? **Yes** — in Profile → Delete account and via
+  the privacy contact address. Deletion removes profile/session/ownership links;
+  anonymized road measurements may be retained as described by the policy.
 
 ## 5. Store listing
 
@@ -96,7 +100,7 @@ just the upload key, so it can be reset if ever lost.
 2. Play Console → Create app → "BetterRoads", App/Free.
 3. Complete **App content**: privacy policy URL, ads = No, content rating
    questionnaire, target audience, data safety (§4), government-apps = No,
-   account deletion = no accounts.
+   account deletion = accounts supported; provide the public deletion URL.
 4. Store listing: texts + icon + feature graphic + screenshots (§5).
 5. Release → Testing → **Closed testing** → create release → upload
    `app-release.aab` → add tester emails → roll out.
@@ -112,15 +116,15 @@ just the upload key, so it can be reset if ever lost.
 
 ## 8. Rebuilding the release
 
-Everything is scripted — see `mobile/app/build-release.sh` (runs in the
-`reactnativecommunity/react-native-android` Docker image on any Linux box):
+Everything is scripted. From the repository root, with Docker running and
+signing files in `mobile/app/signing/`, run:
 
 ```bash
-tar czf /tmp/src.tgz --exclude node_modules --exclude .expo --exclude android -C mobile app
-# copy to a Linux host with Docker, then:
-docker run --rm -v /path/to/app:/proj -v /path/to/app/signing:/signing \
-  reactnativecommunity/react-native-android:latest bash /proj/build-release.sh
+npm run build:apk
 ```
+
+The wrapper validates Docker/signing files, mounts the app and a persistent
+Gradle cache, and runs `mobile/app/build-release.sh` in the Android container.
 
 Bump `expo.android.versionCode` (and `version`) in `mobile/app/app.json` for
 every new upload — Play rejects a reused versionCode.

@@ -26,8 +26,11 @@ import {
   fetchRoads,
   fetchStats,
   fetchTimeline,
+  fetchLeaderboard,
+  fetchContracts,
+  formatDay,
 } from '@/components/map/api';
-import type { PublicStats, RoadEvent, RoadSegment, TimelineData } from '@/components/map/api';
+import type { Contributor, PublicContract, PublicStats, RoadEvent, RoadSegment, TimelineData } from '@/components/map/api';
 import {
   EVENT_COLOR,
   EVENT_TYPE_LABELS,
@@ -52,6 +55,10 @@ const FETCH_DEBOUNCE_MS = 250;
 
 const EMPTY_FC: FeatureCollection = { type: 'FeatureCollection', features: [] };
 
+function contractsToGeoJSON(contracts: PublicContract[]): FeatureCollection {
+  return { type: 'FeatureCollection', features: contracts.filter((c) => c.geometry).map((c) => ({ type: 'Feature', properties: { id: c.id, roadName: c.roadName, contractorName: c.contractorName, status: c.status }, geometry: c.geometry! })) };
+}
+
 /* ── GeoJSON adapters (API sends [lat, lon]; GeoJSON wants [lon, lat]) ── */
 
 function roadsToGeoJSON(segments: RoadSegment[]): FeatureCollection {
@@ -59,7 +66,7 @@ function roadsToGeoJSON(segments: RoadSegment[]): FeatureCollection {
     type: 'FeatureCollection',
     features: segments.map((s) => ({
       type: 'Feature',
-      properties: { rqi: s.rqi, sampleCount: s.sampleCount },
+      properties: { rqi: s.rqi, sampleCount: s.sampleCount, centerLat: s.centerLat, centerLon: s.centerLon },
       geometry: {
         type: 'LineString',
         coordinates: s.geometry.map(([lat, lon]) => [lon, lat]),
@@ -103,7 +110,7 @@ function eventPopupContent(type: string, severity: number, occurredAt: string): 
   return root;
 }
 
-function roadPopupContent(rqi: number, sampleCount: number): HTMLElement {
+function roadPopupContent(rqi: number, sampleCount: number, nearbyContracts: PublicContract[]): HTMLElement {
   const root = document.createElement('div');
   const title = document.createElement('p');
   title.className = 'font-display text-sm font-bold tracking-tight text-ink';
@@ -112,7 +119,25 @@ function roadPopupContent(rqi: number, sampleCount: number): HTMLElement {
   meta.className = 'mt-0.5 text-xs text-ink-3';
   meta.textContent = `from ${sampleCount} ride sample${sampleCount === 1 ? '' : 's'}`;
   root.append(title, meta);
+  if (nearbyContracts.length > 0) {
+    const heading = document.createElement('p'); heading.className = 'mt-2 text-xs font-bold text-ink'; heading.textContent = 'Published accountability records'; root.append(heading);
+    for (const contract of nearbyContracts.slice(0, 3)) {
+      const item = document.createElement('p'); item.className = 'mt-1 text-xs text-ink-2'; item.textContent = `${contract.roadName} · ${contract.contractorName} · ${contract.status}`; root.append(item);
+    }
+  }
   return root;
+}
+
+function geometryCoordinates(geometry: GeoJSON.Geometry | null): [number, number][] {
+  if (!geometry) return [];
+  const out: [number, number][] = [];
+  const walk = (value: unknown) => { if (Array.isArray(value) && value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') out.push([value[0], value[1]]); else if (Array.isArray(value)) value.forEach(walk); };
+  walk((geometry as GeoJSON.Geometry & { coordinates?: unknown }).coordinates);
+  return out;
+}
+
+function contractsNear(lat: number, lon: number, contracts: PublicContract[]): PublicContract[] {
+  return contracts.filter((contract) => geometryCoordinates(contract.geometry).some(([x, y]) => Math.hypot((x - lon) * Math.cos(lat * Math.PI / 180), y - lat) < 0.01));
 }
 
 /**
@@ -124,6 +149,7 @@ export default function MapPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const popupRef = useRef<Popup | null>(null);
+  const contractsRef = useRef<PublicContract[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<number | undefined>(undefined);
   // Mirrors for the fetch path, so map event handlers never close over stale state.
@@ -136,6 +162,11 @@ export default function MapPage() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [updating, setUpdating] = useState(false);
   const [stats, setStats] = useState<PublicStats | null>(null);
+  const [panel, setPanel] = useState<'network' | 'contributors' | 'contracts'>('network');
+  const [period, setPeriod] = useState<'monthly' | 'lifetime'>('monthly');
+  const [contributors, setContributors] = useState<Contributor[]>([]);
+  const [contracts, setContracts] = useState<PublicContract[]>([]);
+  contractsRef.current = contracts;
 
   // Full calendar range + per-day activity for the timeline sparkline.
   const days = useMemo(
@@ -242,6 +273,7 @@ export default function MapPage() {
         clusterMaxZoom: 14,
         clusterRadius: 48,
       });
+      map.addSource('contracts', { type: 'geojson', data: EMPTY_FC });
 
       // White casing under the colored line keeps the RQI hues legible over
       // the basemap (the dataviz "surface ring" between marks).
@@ -303,6 +335,7 @@ export default function MapPage() {
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 0.5, 15, 1.5],
         },
       });
+      map.addLayer({ id: 'contracts-line', type: 'line', source: 'contracts', paint: { 'line-color': '#2563eb', 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2, 15, 7], 'line-dasharray': [2, 1] } });
 
       const popup = new Popup({ closeButton: false, maxWidth: '260px', offset: 10 });
       popupRef.current = popup;
@@ -321,10 +354,10 @@ export default function MapPage() {
         if (map.queryRenderedFeatures(e.point, { layers: ['events-dot'] }).length > 0) return;
         const f = e.features?.[0];
         if (!f) return;
-        const p = f.properties as { rqi: number; sampleCount: number };
+        const p = f.properties as { rqi: number; sampleCount: number; centerLat: number; centerLon: number };
         popup
           .setLngLat(e.lngLat)
-          .setDOMContent(roadPopupContent(p.rqi, p.sampleCount))
+          .setDOMContent(roadPopupContent(p.rqi, p.sampleCount, contractsNear(p.centerLat, p.centerLon, contractsRef.current)))
           .addTo(map);
       });
       for (const layer of ['events-dot', 'roads-line']) {
@@ -369,6 +402,10 @@ export default function MapPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => { void fetchLeaderboard(period).then(setContributors).catch(() => setContributors([])); }, [period]);
+  useEffect(() => { void fetchContracts().then(setContracts).catch(() => setContracts([])); }, []);
+  useEffect(() => { const map = mapRef.current; if (!mapReady || !map) return; (map.getSource('contracts') as GeoJSONSource | undefined)?.setData(contractsToGeoJSON(contracts)); }, [contracts, mapReady]);
 
   // First data load once both the map and the timeline are ready — start at
   // the newest day (the roads' current state).
@@ -458,6 +495,15 @@ export default function MapPage() {
         <div className="absolute left-3 top-3 sm:left-4 sm:top-4">
           <MapLegend />
         </div>
+
+        <aside className="absolute right-3 top-16 z-10 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-line bg-paper/95 shadow-xl backdrop-blur sm:right-4 sm:top-4">
+          <nav className="flex border-b border-line">{(['network', 'contributors', 'contracts'] as const).map((p) => <button key={p} onClick={() => setPanel(p)} className={`flex-1 px-2 py-3 text-xs font-bold capitalize ${panel === p ? 'bg-saffron text-white' : 'text-ink-2'}`}>{p}</button>)}</nav>
+          <div className="max-h-[42vh] overflow-auto p-4">
+            {panel === 'network' && <><p className="eyebrow">Live public data</p><h2 className="mt-1 font-display text-xl font-bold">India road health</h2><p className="mt-2 text-sm text-ink-2">Click a scored road or event for details. Use the timeline below to inspect historical RQI.</p><div className="mt-4 grid grid-cols-2 gap-2">{statItems.map((s) => <div key={s.label} className="rounded-xl bg-paper-2 p-3"><b className="block font-display text-lg">{s.value}</b><span className="text-xs text-ink-3">{s.label}</span></div>)}</div></>}
+            {panel === 'contributors' && <><div className="flex items-center justify-between"><h2 className="font-display text-xl font-bold">Leaderboard</h2><select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} className="rounded-lg border border-line bg-paper px-2 py-1 text-xs"><option value="monthly">This month</option><option value="lifetime">Lifetime</option></select></div>{contributors.length === 0 ? <p className="mt-4 text-sm text-ink-3">No contributors have opted in yet.</p> : <ol className="mt-3 space-y-2">{contributors.map((c, i) => <li key={c.id} className="flex items-center rounded-xl bg-paper-2 p-3"><b className="mr-3 text-ink-3">#{i + 1}</b><div className="flex-1"><b className="text-sm">{c.name}</b><p className="text-xs text-ink-3">{c.journeyCount} journeys</p></div><b>{c.mappedKm.toLocaleString('en-IN')} km</b></li>)}</ol>}</>}
+            {panel === 'contracts' && <><h2 className="font-display text-xl font-bold">Road accountability</h2><p className="mt-1 text-xs text-ink-3">Only records explicitly published by administrators appear here.</p>{contracts.length === 0 ? <p className="mt-4 text-sm text-ink-3">No published contracts.</p> : <div className="mt-3 space-y-3">{contracts.map((contract) => <article key={contract.id} className="rounded-xl border border-line p-3"><b className="text-sm">{contract.roadName}</b><p className="text-xs text-ink-3">{contract.city}{contract.ward ? ` · Ward ${contract.ward}` : ''}</p><p className="mt-2 text-xs"><b>Contractor:</b> {contract.contractorName}</p><p className="text-xs"><b>Status:</b> {contract.status}</p>{contract.guaranteeUntil && <p className="text-xs"><b>Guarantee:</b> until {formatDay(contract.guaranteeUntil)}</p>}</article>)}</div>}</>}
+          </div>
+        </aside>
 
         {/* Refetch keeps the frame — just a quiet chip while data reloads */}
         {updating && (

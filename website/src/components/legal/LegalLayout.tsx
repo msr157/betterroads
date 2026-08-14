@@ -58,6 +58,9 @@ export default function LegalLayout({ title, intro, children }: Props) {
             <a href="/privacy" className="link-underline font-medium text-ink-2 hover:text-ink">
               Privacy Policy
             </a>
+            <a href="/delete-account" className="link-underline font-medium text-ink-2 hover:text-ink">
+              Delete account
+            </a>
           </div>
           <p className="mt-6 text-sm text-ink-3">
             © {new Date().getFullYear()} {LEGAL.companyName}. Made in India.

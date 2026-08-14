@@ -1,4 +1,5 @@
 import {
+  boolean,
   date,
   doublePrecision,
   index,
@@ -10,6 +11,110 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+
+export const users = pgTable(
+  'users',
+  {
+    id: serial('id').primaryKey(),
+    googleSubject: text('google_subject').notNull(),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    dateOfBirth: date('date_of_birth'),
+    gender: text('gender'),
+    genderSelfDescription: text('gender_self_description'),
+    city: text('city'),
+    publicLeaderboard: boolean('public_leaderboard').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('users_google_subject_idx').on(t.googleSubject),
+    uniqueIndex('users_email_idx').on(t.email),
+  ],
+);
+
+export const userSessions = pgTable(
+  'user_sessions',
+  {
+    id: text('id').primaryKey(),
+    userId: integer('user_id').notNull().references(() => users.id),
+    tokenHash: text('token_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    userAgent: text('user_agent'),
+  },
+  (t) => [uniqueIndex('user_sessions_token_idx').on(t.tokenHash), index('user_sessions_user_idx').on(t.userId)],
+);
+
+export const administrators = pgTable(
+  'administrators',
+  {
+    id: serial('id').primaryKey(),
+    username: text('username').notNull(),
+    email: text('email'),
+    displayName: text('display_name').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    preferences: jsonb('preferences').notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('administrators_username_idx').on(t.username)],
+);
+
+export const adminSessions = pgTable(
+  'admin_sessions',
+  {
+    id: text('id').primaryKey(),
+    administratorId: integer('administrator_id').notNull().references(() => administrators.id),
+    tokenHash: text('token_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    userAgent: text('user_agent'),
+    ipAddress: text('ip_address'),
+  },
+  (t) => [uniqueIndex('admin_sessions_token_idx').on(t.tokenHash), index('admin_sessions_admin_idx').on(t.administratorId)],
+);
+
+export const contractors = pgTable('contractors', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  registrationNumber: text('registration_number'),
+  contactName: text('contact_name'),
+  email: text('email'),
+  phone: text('phone'),
+  address: text('address'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const roadContracts = pgTable(
+  'road_contracts',
+  {
+    id: serial('id').primaryKey(),
+    contractorId: integer('contractor_id').notNull().references(() => contractors.id),
+    roadName: text('road_name').notNull(),
+    city: text('city').notNull(),
+    ward: text('ward'),
+    tenderReference: text('tender_reference'),
+    details: text('details'),
+    startDate: date('start_date'),
+    endDate: date('end_date'),
+    budget: doublePrecision('budget'),
+    status: text('status').notNull().default('planned'),
+    guaranteeUntil: date('guarantee_until'),
+    notes: text('notes'),
+    geometry: jsonb('geometry'),
+    published: boolean('published').notNull().default(false),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('road_contracts_city_idx').on(t.city), index('road_contracts_published_idx').on(t.published)],
+);
 
 /**
  * waitlist_signups — stores every unique email that joins the BetterRoads
@@ -85,6 +190,8 @@ export const devices = pgTable(
   'devices',
   {
     id: serial('id').primaryKey(),
+    /** Owner of authenticated uploads; null for pre-auth anonymous devices. */
+    userId: integer('user_id').references(() => users.id),
     /** Install-time UUID minted by the mobile app. */
     deviceUuid: text('device_uuid').notNull(),
     /** 'android' | 'ios'. */
@@ -98,7 +205,7 @@ export const devices = pgTable(
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
     journeyCount: integer('journey_count').notNull().default(0),
   },
-  (t) => [uniqueIndex('devices_uuid_idx').on(t.deviceUuid)],
+  (t) => [uniqueIndex('devices_uuid_idx').on(t.deviceUuid), index('devices_user_idx').on(t.userId)],
 );
 
 export type Device = typeof devices.$inferSelect;
@@ -113,6 +220,8 @@ export const journeys = pgTable(
   {
     /** Client-minted UUID — makes uploads idempotent on retry. */
     id: text('id').primaryKey(),
+    /** Owner resolved from the bearer session; null only on legacy rows. */
+    userId: integer('user_id').references(() => users.id),
     deviceId: integer('device_id')
       .notNull()
       .references(() => devices.id),
@@ -135,11 +244,15 @@ export const journeys = pgTable(
     endLon: doublePrecision('end_lon').notNull(),
     /** Payload schema version the app uploaded with. */
     schemaVersion: integer('schema_version').notNull().default(1),
+    /** Set only after authenticated ingestion and road aggregation completes. */
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('journeys_device_idx').on(t.deviceId),
+    index('journeys_user_idx').on(t.userId),
     index('journeys_ended_at_idx').on(t.endedAt),
+    index('journeys_accepted_at_idx').on(t.acceptedAt),
   ],
 );
 

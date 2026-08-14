@@ -5,8 +5,7 @@ import type { VehicleType } from '@/types';
  * event detection — an auto-rickshaw on glass-smooth tarmac still shakes more
  * than a sedan, so the same jolt threshold can't serve both.
  *
- * Values carried over from the validated Kotlin prototype
- * (mobile/android-prototype/.../data/model/Models.kt).
+ * Values carried over from the validated Android sensing model.
  */
 export const VEHICLES: { type: VehicleType; label: string; baselineRms: number }[] = [
   { type: 'CAR', label: 'Car / Sedan', baselineRms: 0.35 },

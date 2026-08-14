@@ -2,14 +2,13 @@ import type { JourneySegment, RoadEvent, RoadEventType, VehicleType } from '@/ty
 import { baselineFor } from '@/vehicles';
 
 /**
- * Pure detection/scoring engine — a faithful TypeScript port of the Kotlin
- * prototype's SensingService (mobile/android-prototype/.../service/
- * SensingService.kt). No React/Expo imports: it is fed samples and emits
+ * Pure detection/scoring engine — the production implementation of the
+ * original Android sensing formulas. No React/Expo imports: it is fed samples and emits
  * events/segments, so the same math can run under Jest, a replay harness, or
  * the AI engine's reprocessing pipeline.
  *
- * All thresholds are the prototype's field-tuned values; change them there
- * and here together, or better, move them to a shared remote config later.
+ * All thresholds are field-tuned values; move them to shared remote
+ * configuration when server-managed calibration is introduced.
  */
 
 // ── Tuning constants (from the Kotlin prototype) ────────────────────────────

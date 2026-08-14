@@ -130,3 +130,18 @@ export function formatDay(day: string): string {
     year: 'numeric',
   });
 }
+
+export type Contributor = { id: number; name: string; mappedKm: number; journeyCount: number; contributingSince: string; lastContributionAt: string };
+export type PublicContract = { id: number; roadName: string; city: string; ward: string | null; contractorName: string; tenderReference: string | null; startDate: string | null; endDate: string | null; budget: number | null; status: string; guaranteeUntil: string | null; geometry: GeoJSON.Geometry | null };
+
+export async function fetchLeaderboard(period: 'monthly' | 'lifetime'): Promise<Contributor[]> {
+  const res = await fetch(`${API_URL}/api/public/leaderboard?period=${period}`);
+  if (!res.ok) throw new Error('leaderboard request failed');
+  return (await res.json()).contributors ?? [];
+}
+
+export async function fetchContracts(): Promise<PublicContract[]> {
+  const res = await fetch(`${API_URL}/api/public/contracts`);
+  if (!res.ok) throw new Error('contracts request failed');
+  return (await res.json()).contracts ?? [];
+}

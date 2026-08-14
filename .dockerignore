@@ -10,4 +10,10 @@ docs/
 .env
 .env.*
 node_modules/
+**/node_modules/
 coverage/
+**/coverage/
+**/dist/
+**/.env
+**/.env.*
+mobile/app/release/

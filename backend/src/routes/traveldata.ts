@@ -14,14 +14,14 @@ import {
 import { ingestRateLimitMiddleware } from '../middleware/rateLimit.js';
 import { cellCenter, mergeRqi, segmentKeyFor } from '../lib/roadSegments.js';
 import { isInIndia } from '../lib/india.js';
+import { resolveUserSession } from '../lib/auth.js';
 
 /**
  * POST /user/mobile/traveldata — the mobile app's single end-of-journey
  * upload. Contract doc: docs/api-contracts/traveldata.md (schemaVersion 1).
  *
- * The app is unauthenticated by design; the device is identified by an
- * install-time UUID. Uploads are idempotent on journeyId so the app can
- * retry safely.
+ * A valid mobile bearer session is required. The device UUID remains the
+ * installation identity, while account ownership comes only from the session.
  */
 
 const router = new Hono();
@@ -115,6 +115,12 @@ const MAX_BODY_BYTES = 15 * 1024 * 1024;
 router.post(
   '/traveldata',
   ingestRateLimitMiddleware,
+  async (c, next) => {
+    const auth = await resolveUserSession(c.req.header('authorization'));
+    if (!auth) return c.json({ ok: false, error: 'Invalid or expired session.' }, 401);
+    c.set('userId' as never, auth.user.id as never);
+    await next();
+  },
   zValidator('json', travelDataSchema, (result, c) => {
     if (!result.success) {
       const first = result.error.issues[0];
@@ -130,6 +136,7 @@ router.post(
 
     const payload = c.req.valid('json');
     const { device, journey } = payload;
+    const userId = c.get('userId' as never) as number;
 
     if (journey.endedAt < journey.startedAt) {
       return c.json({ ok: false, error: 'Journey ends before it starts.' }, 400);
@@ -147,18 +154,32 @@ router.post(
     try {
       // ── Idempotency: same journeyId → acknowledge without re-ingesting ────
       const existing = await db
-        .select({ id: journeys.id })
+        .select({ id: journeys.id, userId: journeys.userId, acceptedAt: journeys.acceptedAt })
         .from(journeys)
         .where(eq(journeys.id, journey.id))
         .limit(1);
       if (existing.length > 0) {
+        if (existing[0].userId !== userId) {
+          return c.json({ ok: false, error: 'Journey ID belongs to another account.' }, 409);
+        }
+        if (!existing[0].acceptedAt) {
+          return c.json({ ok: false, error: 'A previous ingestion of this journey did not complete. Contact support.' }, 409);
+        }
         return c.json({ ok: true, duplicate: true, journeyId: journey.id });
       }
 
+      const [ownedDevice] = await db.select({ userId: devices.userId }).from(devices).where(eq(devices.deviceUuid, device.uuid)).limit(1);
+      if (ownedDevice?.userId && ownedDevice.userId !== userId) {
+        return c.json({ ok: false, error: 'This device is linked to another account.' }, 409);
+      }
+
+      const result = await db.transaction(async (tx) => {
+
       // ── Device upsert ──────────────────────────────────────────────────────
-      const [deviceRow] = await db
+      const [deviceRow] = await tx
         .insert(devices)
         .values({
+          userId,
           deviceUuid: device.uuid,
           platform: device.platform,
           model: device.model ?? null,
@@ -170,6 +191,7 @@ router.post(
           target: devices.deviceUuid,
           set: {
             lastSeenAt: sql`now()`,
+            userId,
             model: device.model ?? sql`${devices.model}`,
             appVersion: device.appVersion ?? sql`${devices.appVersion}`,
             journeyCount: sql`${devices.journeyCount} + 1`,
@@ -178,8 +200,9 @@ router.post(
         .returning({ id: devices.id });
 
       // ── Journey + raw payload ──────────────────────────────────────────────
-      await db.insert(journeys).values({
+      await tx.insert(journeys).values({
         id: journey.id,
+        userId,
         deviceId: deviceRow.id,
         startedAt: new Date(journey.startedAt),
         endedAt: new Date(journey.endedAt),
@@ -198,11 +221,11 @@ router.post(
         schemaVersion: payload.schemaVersion,
       });
 
-      await db.insert(journeyRaw).values({ journeyId: journey.id, payload });
+      await tx.insert(journeyRaw).values({ journeyId: journey.id, payload });
 
       // ── Events (segment-keyed for map queries) ────────────────────────────
       if (payload.events.length > 0) {
-        await db.insert(roadEvents).values(
+        await tx.insert(roadEvents).values(
           payload.events.map((e) => ({
             id: e.id,
             journeyId: journey.id,
@@ -240,7 +263,7 @@ router.post(
         const key = segmentKeyFor(midLat, midLon);
         const segEvents = eventsPerKey.get(key) ?? 0;
 
-        const [current] = await db
+        const [current] = await tx
           .select()
           .from(roadSegments)
           .where(eq(roadSegments.segmentKey, key))
@@ -251,7 +274,7 @@ router.post(
         if (current) {
           rqi = mergeRqi(current.currentRqi, current.sampleCount, seg.rqiScore);
           samples = current.sampleCount + 1;
-          await db
+          await tx
             .update(roadSegments)
             .set({
               currentRqi: rqi,
@@ -264,7 +287,7 @@ router.post(
           rqi = seg.rqiScore;
           samples = 1;
           const center = cellCenter(key);
-          await db
+          await tx
             .insert(roadSegments)
             .values({
               segmentKey: key,
@@ -282,7 +305,7 @@ router.post(
         }
 
         // Daily snapshot: upsert the cumulative state for (segment, day).
-        await db
+        await tx
           .insert(segmentSnapshots)
           .values({ segmentKey: key, day, rqi, sampleCount: samples, eventCount: segEvents })
           .onConflictDoUpdate({
@@ -295,13 +318,19 @@ router.post(
           });
       }
 
-      return c.json({
+      // A contribution becomes rankable only after the complete validated
+      // payload has been stored and its road segments have been processed.
+      await tx.update(journeys).set({ acceptedAt: sql`now()` }).where(eq(journeys.id, journey.id));
+
+      return {
         ok: true,
         duplicate: false,
         journeyId: journey.id,
         segmentsProcessed: payload.segments.length,
         eventsStored: payload.events.length,
+      };
       });
+      return c.json(result);
     } catch (err) {
       console.error('[traveldata] ingestion error:', err);
       return c.json({ ok: false, error: 'Something went wrong storing the journey.' }, 500);

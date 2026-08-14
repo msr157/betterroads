@@ -5,6 +5,7 @@ import Hero from '@/components/hero/Hero';
 import Terms from '@/components/legal/Terms';
 import Privacy from '@/components/legal/Privacy';
 import AppDownload from '@/components/app/AppDownload';
+import DeleteAccount from '@/components/legal/DeleteAccount';
 
 // Lazy — maplibre-gl is heavy and must not bloat the landing-page bundle.
 const MapPage = lazy(() => import('@/components/map/MapPage'));
@@ -17,6 +18,7 @@ export default function App() {
 
   if (path === '/terms') return <Terms />;
   if (path === '/privacy') return <Privacy />;
+  if (path === '/delete-account') return <DeleteAccount />;
   if (path === '/app') return <AppDownload />;
   if (path === '/map') {
     return (

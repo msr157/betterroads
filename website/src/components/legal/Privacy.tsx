@@ -56,8 +56,10 @@ export default function Privacy() {
       <Section n={3} title="The BetterRoads mobile app">
         <p>
           The BetterRoads app measures road quality using your phone&apos;s sensors while you
-          travel. It is designed to work <strong>without an account</strong> — we do not ask for
-          your name, email, or phone number in the app. When you use it, we collect:
+          travel. A Google account is required so contributions can be attributed and sessions can
+          be secured. We collect your Google subject identifier, verified email address, and the
+          required display name you provide. You may also provide a date of birth, gender, city,
+          and consent to appear on the public leaderboard. When you use it, we also collect:
         </p>
         <ul>
           <li>
@@ -76,7 +78,7 @@ export default function Privacy() {
           <li>
             <strong>A random install identifier</strong> — a UUID generated on your device the
             first time you open the app. It is not your MAC address, advertising ID, or any
-            government identifier, and we do not link it to your identity;
+            government identifier. Authenticated uploads link it to your BetterRoads account;
           </li>
           <li>
             <strong>Basic device information</strong> — device model, platform (Android/iOS), and
@@ -85,13 +87,17 @@ export default function Privacy() {
         </ul>
         <p>
           Journey data is uploaded to our servers when a journey ends and is used to compute and
-          publish <strong>aggregated, non-identifying road-quality information</strong> (for
-          example, the public road-quality map and its history). We do not sell this data. Because
+          publish <strong>aggregated road-quality information</strong> (for example, the public map
+          and its history). If you explicitly opt in, the leaderboard additionally shows only your
+          display name, accepted mapped distance, journey count, and contribution period. It never
+          shows email, date of birth or age, gender, or city. We do not sell this data. Because
           location traces can be sensitive, raw journey data is accessible only to us and is
           processed under the safeguards described in this policy. To have the data associated
           with your device deleted, contact{' '}
           <a href={`mailto:${LEGAL.privacyEmail}`}>{LEGAL.privacyEmail}</a> and we will assist in
-          identifying and erasing it.
+          identifying and erasing it. You can also delete your account from the Profile screen.
+          Account deletion erases the profile, sessions, and account links; anonymized road
+          measurements may remain in the public road dataset.
         </p>
       </Section>
 
@@ -142,6 +148,12 @@ export default function Privacy() {
           your consent; or (b) it is no longer needed for the purposes above (for example, a
           reasonable period after launch). We may retain limited records for as long as required to
           comply with legal obligations or resolve disputes.
+        </p>
+        <p>
+          Mobile profile and account-linked journey data is retained while your account is active
+          or until you delete it. Revoked and expired session records may be retained for a limited
+          security and audit period. After account deletion, anonymized road measurements may be
+          retained without the profile or ownership links described above.
         </p>
       </Section>
 

@@ -6,7 +6,8 @@ const KEY = 'betterroads.device_uuid';
 let cached: string | null = null;
 
 /**
- * Install-time device UUID — the app's only identity (no accounts, no PII).
+ * Install-time device UUID — identifies an installation, while account
+ * ownership is resolved exclusively from the authenticated upload session.
  * Minted once on first launch and persisted; a reinstall mints a new one,
  * which is acceptable: the server only uses it to group journeys.
  */

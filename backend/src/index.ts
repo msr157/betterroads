@@ -8,7 +8,9 @@ import { waitlistRouter } from './routes/waitlist.js';
 import { travelDataRouter } from './routes/traveldata.js';
 import { publicRoadsRouter } from './routes/publicRoads.js';
 import { adminRouter } from './routes/admin.js';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { mobileAuthRouter } from './routes/mobileAuth.js';
+import { bootstrapAdministrator } from './lib/auth.js';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { db } from './db/index.js';
 
 // ─── App ─────────────────────────────────────────────────────────────────────
@@ -28,14 +30,12 @@ app.use('*', corsMiddleware);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-let migrationError: any = null;
-
 /** Internal /health is used by Docker healthcheck, /api/health is used for debugging */
 app.get('/health', (c) => {
-  return c.json({ ok: true, service: 'betterroads-api', migrationError: String(migrationError) });
+  return c.json({ ok: true, service: 'betterroads-api' });
 });
 app.get('/api/health', (c) => {
-  return c.json({ ok: true, service: 'betterroads-api', migrationError: String(migrationError) });
+  return c.json({ ok: true, service: 'betterroads-api' });
 });
 
 /** Waitlist endpoints under /api/waitlist */
@@ -47,6 +47,7 @@ app.route('/api/waitlist', waitlistRouter);
  */
 app.route('/user/mobile', travelDataRouter);
 app.route('/api/user/mobile', travelDataRouter);
+app.route('/api/mobile', mobileAuthRouter);
 
 /** Public map + timeline read API */
 app.route('/api/public', publicRoadsRouter);
@@ -71,25 +72,23 @@ const port = parseInt(process.env.PORT ?? '3000', 10);
 
 async function start() {
   console.log('[betterroads-api] running database migrations...');
-  try {
-    await migrate(db, {
-      migrationsFolder: './migrations',
-      migrationsSchema: 'public',
-      migrationsTable: 'betterroads_drizzle_migrations',
-    });
-    console.log('[betterroads-api] migrations completed successfully.');
-    migrationError = null;
-  } catch (err) {
-    console.error('[betterroads-api] database migration failed:', err);
-    migrationError = err;
-    // process.exit(1); // Removed so we can see the error in the logs or via healthcheck
-  }
+  await migrate(db, {
+    migrationsFolder: './migrations',
+    migrationsSchema: 'public',
+    migrationsTable: 'betterroads_drizzle_migrations',
+  });
+  console.log('[betterroads-api] migrations completed successfully.');
+  await bootstrapAdministrator();
 
   serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
     console.log(`[betterroads-api] listening on http://${info.address}:${info.port}`);
   });
 }
 
-start();
+start().catch((err) => {
+  // Never start a healthy-looking container against an unmigrated schema.
+  console.error('[betterroads-api] startup failed:', err);
+  process.exit(1);
+});
 
 export default app;

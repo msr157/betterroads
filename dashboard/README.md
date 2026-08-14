@@ -7,8 +7,9 @@ backend's bearer-token-protected `/api/admin` routes.
 
 ## Run locally
 
-1. **Backend** — in `backend/`, set `ADMIN_TOKEN` in `.env` (e.g.
-   `openssl rand -hex 32`; the admin API returns 503 while it is unset), then:
+1. **Backend** — in `backend/`, set `ADMIN_BOOTSTRAP_USERNAME` and a 12+
+   character `ADMIN_BOOTSTRAP_PASSWORD`. They are used only while the
+   administrators table is empty, then:
 
    ```sh
    cd backend && npm run dev   # listens on http://localhost:3000
@@ -25,9 +26,8 @@ backend's bearer-token-protected `/api/admin` routes.
    (Or put `VITE_API_URL=http://localhost:3000` in `dashboard/.env.local`.)
    `http://localhost:5173` is already in the backend's default CORS allowlist.
 
-3. Open the app and paste the `ADMIN_TOKEN` value into the login gate. The
-   token is validated against `GET /api/admin/overview` and kept in
-   `localStorage` until you disconnect.
+3. Open the app and sign in with that username/password. A revocable database
+   session is kept in `localStorage` until logout or expiry.
 
 ## Build
 
@@ -44,7 +44,8 @@ port 80, `/health` endpoint for the Swarm healthcheck). `VITE_API_URL` is a
 **build-time** arg: leave it empty when the dashboard's hostname routes `/api`
 to the backend via Traefik, or set it (e.g. `https://api.betterroads.org`) as a
 Docker build arg in Dokploy — remember the target origin must also be in the
-backend's `CORS_ORIGINS`, and the backend service needs `ADMIN_TOKEN` set.
+backend's `CORS_ORIGINS`, and the backend service needs bootstrap values for
+its first deployment.
 
 **Deploy checklist** (conventions from `docs/DEPLOYMENT_KB.md`): create the
 Dokploy app on a dedicated hostname (e.g. `admin.betterroads.org`) with
@@ -54,5 +55,5 @@ healthcheck on `127.0.0.1` (Alpine's `localhost` may resolve to IPv6); in
 Cloudflare, add ONLY a proxied `CNAME` for the hostname pointing at the tunnel
 UUID (`<tunnel-uuid>.cfargotunnel.com`, delete stray `A` records) and a tunnel
 ingress rule routing it to `http://172.17.0.1:80` so it reaches Traefik across
-isolated Docker networks; finally set `ADMIN_TOKEN` on the backend app and
+isolated Docker networks; finally set bootstrap credentials on the backend and
 confirm `https://<hostname>/health` returns ok before logging in.

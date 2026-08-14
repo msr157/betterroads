@@ -1,6 +1,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { TRAVELDATA_ENDPOINT } from '@/config';
 import type { TravelDataPayload } from '@/types';
+import { clearToken, getCurrentUserId, getToken } from '@/auth';
 
 /**
  * Journey upload with an on-disk retry queue. Payloads are written to files
@@ -15,40 +16,52 @@ function queueDir(): Directory {
   return dir;
 }
 
-async function post(payload: TravelDataPayload): Promise<boolean> {
+type PostResult = 'accepted' | 'retry' | 'auth-expired' | 'rejected';
+async function post(payload: TravelDataPayload): Promise<PostResult> {
+  const token = await getToken();
+  if (!token) return 'auth-expired';
   const res = await fetch(TRAVELDATA_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(payload),
   });
-  // 400 = the server rejected the payload as invalid; retrying the same bytes
-  // can never succeed, so treat it as terminal and drop from the queue.
-  if (res.status === 400) return true;
-  return res.ok;
+  // Retain rejected payloads. In particular, a 409 may mean the journey ID
+  // belongs to another account and must never be reported as uploaded.
+  if (res.status === 400 || res.status === 409) return 'rejected';
+  if (res.status === 401) { await clearToken(); return 'auth-expired'; }
+  return res.ok ? 'accepted' : 'retry';
 }
 
-export type UploadResult = 'uploaded' | 'queued';
+export type UploadResult = 'uploaded' | 'queued' | 'auth-expired' | 'rejected';
 
 /** Upload now if possible; otherwise persist for a later flush. */
 export async function uploadOrQueue(payload: TravelDataPayload): Promise<UploadResult> {
+  const ownerId = await getCurrentUserId();
+  let result: PostResult = 'retry';
   try {
-    if (await post(payload)) return 'uploaded';
+    result = await post(payload);
+    if (result === 'accepted') return 'uploaded';
   } catch {
     // Offline — fall through to queueing.
   }
   const file = new File(queueDir(), `${payload.journey.id}.json`);
-  file.write(JSON.stringify(payload));
-  return 'queued';
+  file.write(JSON.stringify({ ownerId, payload }));
+  if (result === 'auth-expired') return 'auth-expired';
+  return result === 'rejected' ? 'rejected' : 'queued';
 }
 
 /** Retry everything in the queue; returns how many are still pending. */
 export async function flushQueue(): Promise<number> {
   let pending = 0;
+  const currentUserId = await getCurrentUserId();
   for (const entry of queueDir().list()) {
     if (!(entry instanceof File)) continue;
     try {
-      const payload = JSON.parse(await entry.text()) as TravelDataPayload;
-      if (await post(payload)) {
+      const parsed = JSON.parse(await entry.text()) as { ownerId?: number; payload?: TravelDataPayload } | TravelDataPayload;
+      const queued = 'payload' in parsed ? parsed : null;
+      if (!queued || !queued.ownerId || queued.ownerId !== currentUserId) { pending += 1; continue; }
+      const payload = queued.payload!;
+      if ((await post(payload)) === 'accepted') {
         entry.delete();
       } else {
         pending += 1;

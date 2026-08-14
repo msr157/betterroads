@@ -1,86 +1,57 @@
-name: CI — Lint · Test · Build · Deploy
-
-# ─────────────────────────────────────────────────────────────────────
-# GitHub Actions CI/CD Pipeline — betterroads
-#
-# Branch strategy:
-#   main        → CI + Dokploy webhook deploy
-#   qa          → CI only
-#   development → CI only
-#
-# Deployment: Dokploy webhook only. No SSH, no host scripts, no sockets.
-# Secret required in this repository: DOKPLOY_WEBHOOK_URL
-# ─────────────────────────────────────────────────────────────────────
+name: BetterRoads validation
 
 on:
   push:
-    branches:
-      - main
-      - qa
-      - development
+    branches: [main, qa, development]
+  pull_request:
 
 jobs:
-  ci-pipeline:
-    name: Production Validation Pipeline
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 30
     steps:
-      # ── 1. Checkout ───────────────────────────────────────────────
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
         with:
-          fetch-depth: 1
+          version: 9.15.4
 
-      # ── 2. Verify runtimes ────────────────────────────────────────
-      - name: Verify Environment Runtimes
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install website and backend
+        run: pnpm install --frozen-lockfile
+
+      - name: Install standalone applications
         run: |
-          echo "📦 Inspecting runner toolchains..."
-          node --version  || echo "node not available"
-          npm  --version  || echo "npm not available"
-          docker --version
-          curl --version | head -1
-          echo "✅ Environment check complete."
+          npm ci --prefix dashboard
+          npm ci --prefix mobile/app
 
-      # ── 3. Lint ───────────────────────────────────────────────────
-      - name: Code Quality Audit (Lint)
+      - name: Build and typecheck applications
         run: |
-          echo "🔍 Running lint..."
-          npm run lint || echo "ℹ️  No lint script defined — skipping."
+          pnpm --filter @betterroads/backend build
+          pnpm --filter website build
+          npm run build --prefix dashboard
+          npm run typecheck --prefix mobile/app
 
-      # ── 4. Tests ──────────────────────────────────────────────────
-      - name: Execute Test Suite
+      - name: Unit tests
         run: |
-          echo "🧪 Running tests..."
-          npm run test || echo "ℹ️  No test script defined — skipping."
+          pnpm --filter @betterroads/backend test
+          npm test --prefix mobile/app
 
-      # ── 5. Docker Build ───────────────────────────────────────────
-      # Validates the Dockerfile compiles cleanly.
-      # Runtime: nginx:alpine, port 80, /health endpoint.
-      # A successful build is sufficient CI validation.
-      # Dokploy owns the production deployment and runtime validation.
-      - name: Validate Dockerfile Build
+      - name: AI tests
         run: |
-          echo "🐳 Building Docker image..."
-          docker build --no-cache -f Dockerfile -t ci-validate:${{ github.sha }} .
-          echo "✅ Docker build succeeded."
+          python -m pip install -e "ai[test]"
+          python -m pytest ai/tests
 
-      # ── 6. Deploy — main branch only ─────────────────────────────
-      # Dokploy now automatically listens to GitHub webhooks.
-      # No manual trigger is required in this pipeline.
-      - name: Deployment handled by Dokploy
+      - name: Production Docker builds
+        run: |
+          docker build -f Dockerfile -t betterroads-website:${{ github.sha }} .
+          docker build -f backend/Dockerfile -t betterroads-backend:${{ github.sha }} backend
+          docker build -f dashboard/Dockerfile -t betterroads-dashboard:${{ github.sha }} dashboard
+
+      - name: Deployment handoff
         if: github.ref == 'refs/heads/main'
-        run: echo "✅ Dokploy will deploy automatically via GitHub Webhooks."
-
-      # ── Skip notice for non-production branches ───────────────────
-      - name: Deployment Skipped
-        if: github.ref != 'refs/heads/main'
-        run: echo "ℹ️  Not on main — CI passed, deployment skipped."
-
-      # ── 7. Cleanup ────────────────────────────────────────────────
-      - name: Cleanup
-        if: always()
-        run: |
-          echo "🧹 Pruning dangling Docker images..."
-          docker image prune -f || true
-          echo "🧹 Done."
+        run: echo "Dokploy deploys main through its configured GitHub webhooks."
