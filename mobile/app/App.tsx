@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import * as Location from 'expo-location';
+import { State } from 'country-state-city';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { JourneyRecorder } from '@/journeyRecorder';
 import type { EngineSnapshot } from '@/sensorEngine';
@@ -26,6 +28,47 @@ if (GOOGLE_AUTH_ENABLED) {
 }
 
 type Phase = 'idle' | 'recording' | 'uploading';
+
+async function detectUserLocation(): Promise<{
+  stateCode: string | null;
+  cityName: string | null;
+}> {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return { stateCode: null, cityName: null };
+    const loc = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    const geo = await Location.reverseGeocodeAsync({
+      latitude: loc.coords.latitude,
+      longitude: loc.coords.longitude,
+    });
+    if (!geo || geo.length === 0) return { stateCode: null, cityName: null };
+    const first = geo[0];
+    if (!first) return { stateCode: null, cityName: null };
+    const regionName = (first.region || first.subregion || '').trim();
+    const cityName = (
+      first.city ||
+      first.subregion ||
+      first.district ||
+      ''
+    ).trim() || null;
+
+    const allStates = State.getStatesOfCountry('IN');
+    const matchedState = allStates.find(
+      (s) =>
+        s.name.toLowerCase() === regionName.toLowerCase() ||
+        s.isoCode.toLowerCase() === regionName.toLowerCase() ||
+        (regionName.length > 3 &&
+          s.name.toLowerCase().includes(regionName.toLowerCase())),
+    );
+
+    const stateCode = matchedState?.isoCode || null;
+    return { stateCode, cityName };
+  } catch {
+    return { stateCode: null, cityName: null };
+  }
+}
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('idle');
@@ -73,13 +116,27 @@ export default function App() {
     try {
       setAuthError(null);
       setAuthLoading(true);
+      const detected = await detectUserLocation();
       await GoogleSignin.hasPlayServices();
       const response = await GoogleSignin.signIn();
       if (response.type === 'success') {
         const idToken = response.data.idToken;
         if (!idToken) throw new Error('Google did not return an ID token.');
         const profile = await exchangeGoogleToken(idToken);
-        setUser(profile);
+
+        let initialCity = profile.city;
+        if (detected.cityName && detected.stateCode) {
+          initialCity = `${detected.cityName}, ${detected.stateCode}`;
+        } else if (detected.stateCode) {
+          initialCity = `, ${detected.stateCode}`;
+        }
+
+        const draftProfile: UserProfile = {
+          ...profile,
+          city: initialCity || profile.city,
+        };
+
+        setUser(draftProfile);
         setIsInitialSetup(true);
         setEditingProfile(true);
         await flushQueue();
@@ -98,8 +155,27 @@ export default function App() {
     try {
       setAuthError(null);
       setAuthLoading(true);
+
+      // 1. Detect location on 3rd onboarding step to autofill draft profile
+      const detected = await detectUserLocation();
+
+      // 2. Create / restore contributor guest session
       const profile = await enterBetterRoads();
-      setUser(profile);
+
+      // 3. Pre-populate detected location into draft profile
+      let initialCity = profile.city;
+      if (detected.cityName && detected.stateCode) {
+        initialCity = `${detected.cityName}, ${detected.stateCode}`;
+      } else if (detected.stateCode) {
+        initialCity = `, ${detected.stateCode}`;
+      }
+
+      const draftProfile: UserProfile = {
+        ...profile,
+        city: initialCity || profile.city,
+      };
+
+      setUser(draftProfile);
       // Immediately open Profile Editor for onboarding setup
       setIsInitialSetup(true);
       setEditingProfile(true);

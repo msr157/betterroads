@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
@@ -16,6 +17,28 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { radii, theme } from '@/theme';
 import { FlagRule } from '@/components/FlagRule';
+import { ArrowNextButton } from '@/components/ArrowNextButton';
+
+const SOCIAL_LINKS = [
+  {
+    id: 'instagram',
+    label: 'Instagram',
+    iconName: 'logo-instagram' as const,
+    url: 'https://www.instagram.com/betterroads_org/',
+  },
+  {
+    id: 'x',
+    label: 'X',
+    iconName: 'logo-twitter' as const,
+    url: 'https://x.com/BetterRoadz',
+  },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    iconName: 'logo-linkedin' as const,
+    url: 'https://www.linkedin.com/company/betterroads',
+  },
+];
 
 const SLIDES = [
   {
@@ -27,6 +50,7 @@ const SLIDES = [
     description:
       'Map and score road quality automatically as you commute using your smartphone\'s motion sensors.',
     iconName: 'analytics-outline' as const,
+    progressColor: '#80F17E',
   },
   {
     id: 'intelligence',
@@ -37,6 +61,7 @@ const SLIDES = [
     description:
       'Real-time vibration analysis logs potholes, speed breakers, and surface roughness as you ride.',
     iconName: 'hardware-chip-outline' as const,
+    progressColor: '#80F17E',
   },
   {
     id: 'privacy',
@@ -45,8 +70,9 @@ const SLIDES = [
     titleHighlight: 'Private.',
     tagline: 'No passwords. No surveillance.',
     description:
-      'Anonymous device contributor identity. Your personal details stay private unless you opt into the public leaderboard.',
+      'Anonymous device contributor identity. Enable location to automatically map your civic district.',
     iconName: 'shield-checkmark-outline' as const,
+    progressColor: '#80F17E',
   },
 ];
 
@@ -68,6 +94,7 @@ export function OnboardingView({
   const { width } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<FlatList>(null);
+  const isAutoPlayingRef = useRef(true);
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = e.nativeEvent.contentOffset.x;
@@ -84,15 +111,58 @@ export function OnboardingView({
     } catch {}
   };
 
+  const nextSlide = () => {
+    if (activeIndex < SLIDES.length - 1) {
+      goToSlide(activeIndex + 1);
+    } else {
+      onEnter();
+    }
+  };
+
+  // Auto-swipe all onboarding slides every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!isAutoPlayingRef.current) return;
+      setActiveIndex((prev) => {
+        const next = (prev + 1) % SLIDES.length;
+        try {
+          listRef.current?.scrollToIndex({ index: next, animated: true });
+        } catch {}
+        return next;
+      });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [width]);
+
+  const openSocial = (url: string) => {
+    Linking.openURL(url).catch(() => {});
+  };
+
+  const isLastSlide = activeIndex === SLIDES.length - 1;
+
   return (
     <SafeAreaView style={styles.root}>
-      {/* Top Header with Status Bar Clearance */}
+      {/* Top Header with Wordmark and Socials */}
       <View style={styles.header}>
         <View style={styles.brandRow}>
           <Text style={styles.wordmark}>betterroads</Text>
           <Text style={styles.accentDot}>.</Text>
         </View>
-        <Text style={styles.headerEyebrow}>CITIZEN MOVEMENT</Text>
+
+        {/* Social Icons in Header */}
+        <View style={styles.socialRow}>
+          {SOCIAL_LINKS.map((s) => (
+            <Pressable
+              key={s.id}
+              onPress={() => openSocial(s.url)}
+              hitSlop={10}
+              style={styles.socialButton}
+            >
+              <Ionicons name={s.iconName} size={18} color={theme.ink2} />
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       {/* Flag rule stripe */}
@@ -101,7 +171,12 @@ export function OnboardingView({
       </View>
 
       {/* Feature Carousel */}
-      <View style={styles.carouselContainer}>
+      <View
+        style={styles.carouselContainer}
+        onTouchStart={() => {
+          isAutoPlayingRef.current = false;
+        }}
+      >
         <FlatList
           ref={listRef}
           data={SLIDES}
@@ -149,12 +224,43 @@ export function OnboardingView({
         />
       </View>
 
+      {/* Middle Banner: Citizen Movement & Socials */}
+      <View style={styles.middleBannerContainer}>
+        <View style={styles.bannerCard}>
+          <View style={styles.bannerHeaderRow}>
+            <FlagRule width={24} height={2} />
+            <Text style={styles.bannerTitle}>Join the Citizen Movement</Text>
+            <FlagRule width={24} height={2} />
+          </View>
+          <Text style={styles.bannerSubtitle}>
+            Fix India's roads through open, crowdsourced data.
+          </Text>
+
+          {/* Social Links Row inside banner for balanced composition */}
+          <View style={styles.bannerSocialsRow}>
+            {SOCIAL_LINKS.map((s) => (
+              <Pressable
+                key={s.id}
+                onPress={() => openSocial(s.url)}
+                style={styles.bannerSocialPill}
+              >
+                <Ionicons name={s.iconName} size={14} color={theme.saffron} />
+                <Text style={styles.bannerSocialText}>{s.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </View>
+
       {/* Interactive Pagination Dots */}
       <View style={styles.paginationRow}>
         {SLIDES.map((_, i) => (
           <Pressable
             key={i}
-            onPress={() => goToSlide(i)}
+            onPress={() => {
+              isAutoPlayingRef.current = false;
+              goToSlide(i);
+            }}
             hitSlop={12}
             style={[
               styles.dot,
@@ -164,50 +270,65 @@ export function OnboardingView({
         ))}
       </View>
 
-      {/* Citizen Movement Banner */}
-      <View style={styles.bannerCard}>
-        <View style={styles.bannerHeaderRow}>
-          <FlagRule width={24} height={2} />
-          <Text style={styles.bannerTitle}>Join the Citizen Movement</Text>
-          <FlagRule width={24} height={2} />
-        </View>
-        <Text style={styles.bannerSubtitle}>
-          Fix India's roads through open, crowdsourced data.
-        </Text>
-      </View>
-
-      {/* Bottom Actions */}
+      {/* Bottom Action Area */}
       <View style={styles.bottomSection}>
         {error && <Text style={styles.errorText}>{error}</Text>}
 
-        {/* Primary CTA */}
-        <Pressable
-          style={styles.primaryButton}
-          onPress={onEnter}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.primaryButtonText}>Enter BetterRoads</Text>
-          )}
-        </Pressable>
+        {!isLastSlide ? (
+          /* Arrow Next Button on Slide 1 & 2 */
+          <View style={styles.arrowButtonContainer}>
+            <ArrowNextButton
+              onPress={() => {
+                isAutoPlayingRef.current = false;
+                nextSlide();
+              }}
+              size={68}
+              progressColor={SLIDES[activeIndex]?.progressColor || '#80F17E'}
+            />
+          </View>
+        ) : (
+          /* Final CTA on Slide 3 with Location Permission Trigger */
+          <View style={styles.finalActionsWrapper}>
+            <Pressable
+              style={styles.primaryButton}
+              onPress={onEnter}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <View style={styles.primaryButtonContent}>
+                  <Ionicons
+                    name="location-outline"
+                    size={18}
+                    color="#ffffff"
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.primaryButtonText}>
+                    Enter & Set Up Profile
+                  </Text>
+                </View>
+              )}
+            </Pressable>
 
-        {/* Optional Google Test Sign-in */}
-        {googleAuthEnabled && onGoogleLogin && (
-          <Pressable
-            style={styles.secondaryButton}
-            onPress={onGoogleLogin}
-            disabled={loading}
-          >
-            <Text style={styles.secondaryButtonText}>Test Google sign-in</Text>
-          </Pressable>
+            {googleAuthEnabled && onGoogleLogin && (
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={onGoogleLogin}
+                disabled={loading}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  Test Google sign-in
+                </Text>
+              </Pressable>
+            )}
+
+            <Text style={styles.disclaimerText}>
+              Location permission will automatically detect your city. No
+              passwords needed.
+            </Text>
+          </View>
         )}
-
-        <Text style={styles.disclaimerText}>
-          We create a private contributor ID and unique username for this
-          installation. No password needed.
-        </Text>
       </View>
     </SafeAreaView>
   );
@@ -222,8 +343,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -244,35 +365,41 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: theme.saffron,
   },
-  headerEyebrow: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    color: theme.ink3,
-    textTransform: 'uppercase',
+  socialRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  socialButton: {
+    padding: 6,
+    borderRadius: radii.full,
+    backgroundColor: theme.bg2,
+    borderWidth: 1,
+    borderColor: theme.line,
   },
   flagRuleContainer: {
     paddingHorizontal: 20,
-    marginBottom: 6,
+    marginBottom: 4,
     width: '100%',
   },
   carouselContainer: {
     flex: 1,
     justifyContent: 'center',
+    maxHeight: 330,
   },
   slide: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
   slideEyebrowBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: radii.full,
     backgroundColor: theme.bg2,
     borderWidth: 1,
     borderColor: theme.line,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   slideEyebrowText: {
     fontSize: 10,
@@ -282,13 +409,13 @@ const styles = StyleSheet.create({
     color: theme.saffron,
   },
   headline: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: '900',
     letterSpacing: -1,
     color: theme.ink,
     textAlign: 'center',
-    lineHeight: 36,
-    marginBottom: 6,
+    lineHeight: 34,
+    marginBottom: 4,
   },
   highlightText: {
     color: theme.saffronDeep,
@@ -298,7 +425,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: theme.ink2,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     maxWidth: 320,
   },
   featureCard: {
@@ -307,14 +434,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.line,
     borderRadius: radii.xl,
-    padding: 20,
+    padding: 16,
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   iconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: theme.saffronTint,
     borderWidth: 1,
     borderColor: theme.lineStrong,
@@ -325,40 +452,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.ink,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 19,
     fontWeight: '500',
     maxWidth: 300,
   },
-  paginationRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    marginVertical: 10,
-  },
-  dot: {
-    height: 6,
-    borderRadius: 3,
-  },
-  dotActive: {
-    width: 24,
-    backgroundColor: theme.saffronDeep,
-  },
-  dotInactive: {
-    width: 6,
-    backgroundColor: theme.lineStrong,
+  middleBannerContainer: {
+    paddingHorizontal: 16,
+    marginVertical: 4,
+    width: '100%',
   },
   bannerCard: {
-    marginHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: theme.bg3,
+    backgroundColor: theme.bg2,
     borderWidth: 1,
     borderColor: theme.lineStrong,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 12,
+    gap: 6,
   },
   bannerHeaderRow: {
     flexDirection: 'row',
@@ -375,11 +486,61 @@ const styles = StyleSheet.create({
     color: theme.ink2,
     textAlign: 'center',
   },
-  bottomSection: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+  bannerSocialsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+    marginTop: 4,
+  },
+  bannerSocialPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: theme.bg3,
+    borderWidth: 1,
+    borderColor: theme.line,
+    borderRadius: radii.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  bannerSocialText: {
+    fontSize: 11,
+    color: theme.ink,
+    fontWeight: '600',
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 6,
+  },
+  dot: {
+    height: 6,
+    borderRadius: 3,
+  },
+  dotActive: {
+    width: 24,
+    backgroundColor: theme.saffronDeep,
+  },
+  dotInactive: {
+    width: 6,
+    backgroundColor: theme.lineStrong,
+  },
+  bottomSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    alignItems: 'center',
     width: '100%',
+  },
+  arrowButtonContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  finalActionsWrapper: {
+    width: '100%',
+    gap: 8,
   },
   primaryButton: {
     backgroundColor: theme.saffronDeep,
@@ -393,6 +554,10 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
     width: '100%',
+  },
+  primaryButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   primaryButtonText: {
     color: '#ffffff',
