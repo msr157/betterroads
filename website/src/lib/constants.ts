@@ -88,7 +88,7 @@ export const STATS = [
  * with mobile/app/app.json on every release.
  */
 export const APP_DOWNLOAD = {
-  version: '1.0.0',
+  version: '1.0.1',
   apkUrl: '/downloads/BetterRoads.apk',
   apkName: 'BetterRoads.apk',
   requirement: 'Android 10 or newer',
