@@ -3,7 +3,9 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
+import { feedbacks } from '../db/schema.js';
 import { clampBboxToIndia } from '../lib/india.js';
+import { feedbackRateLimitMiddleware } from '../middleware/rateLimit.js';
 
 /**
  * Public read-only API for the map + timeline UI.
@@ -270,6 +272,34 @@ router.get('/contributors', zValidator('query', z.object({ limit: z.coerce.numbe
     LIMIT ${c.req.valid('query').limit}
   `);
   return c.json({ ok: true, contributors: rows }, 200, CACHE);
+});
+
+router.post('/feedback', feedbackRateLimitMiddleware, zValidator('json', z.object({
+  name: z.string().max(80).optional(),
+  email: z.string().email().max(254).optional().or(z.literal('')),
+  category: z.string().min(1).max(50),
+  description: z.string().min(1).max(2000),
+  source: z.enum(['website', 'mobile']),
+  deviceOs: z.string().max(100).optional(),
+  location: z.string().max(255).optional(),
+})), async (c) => {
+  const body = c.req.valid('json');
+  
+  // Combine client-provided location with server-detected IP country
+  const clientLocation = body.location?.trim() || null;
+  const ipCountry = c.req.header('cf-ipcountry') || c.req.header('x-vercel-ip-country') || null;
+  const finalLocation = clientLocation && ipCountry ? `${clientLocation} (${ipCountry})` : (clientLocation || ipCountry || null);
+
+  await db.insert(feedbacks).values({
+    name: body.name?.trim() || null,
+    email: body.email?.trim() || null,
+    category: body.category.trim(),
+    description: body.description.trim(),
+    source: body.source,
+    deviceOs: body.deviceOs?.trim() || null,
+    location: finalLocation,
+  });
+  return c.json({ ok: true });
 });
 
 router.get('/contracts', async (c) => {

@@ -6,6 +6,7 @@ import Terms from '@/components/legal/Terms';
 import Privacy from '@/components/legal/Privacy';
 import AppDownload from '@/components/app/AppDownload';
 import DeleteAccount from '@/components/legal/DeleteAccount';
+import FeedbackWidget from '@/components/FeedbackWidget';
 
 // Lazy — maplibre-gl is heavy and must not bloat the landing-page bundle.
 const MapPage = lazy(() => import('@/components/map/MapPage'));
@@ -39,6 +40,7 @@ export default function App() {
       <main id="top">
         <Hero />
       </main>
+      <FeedbackWidget />
     </WaitlistProvider>
   );
 }

@@ -66,17 +66,18 @@ cd android
 ./gradlew --no-daemon --max-workers 2 :app:bundleRelease :app:assembleRelease \
   -x lintVitalAnalyzeRelease -x lintVitalReportRelease -x lintVitalRelease
 
-# Name the artifacts properly: BetterRoads-v<version>.apk / .aab
+# Name the artifacts properly: BetterRoads-v<version>_<timestamp>.apk / .aab
 VERSION=$(node -p "require('/proj/app.json').expo.version")
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 CHANNEL=${BETTERROADS_RELEASE_CHANNEL:-stable}
 mkdir -p /proj/release
 if [ "$CHANNEL" = "test" ]; then
-  cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads-Test-v${VERSION}.apk"
-  cp app/build/outputs/bundle/release/app-release.aab "/proj/release/BetterRoads-Test-v${VERSION}.aab"
+  cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads-Test-v${VERSION}_${TIMESTAMP}.apk"
+  cp app/build/outputs/bundle/release/app-release.aab "/proj/release/BetterRoads-Test-v${VERSION}_${TIMESTAMP}.aab"
   cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads-Test.apk"
 else
-  cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads-v${VERSION}.apk"
-  cp app/build/outputs/bundle/release/app-release.aab "/proj/release/BetterRoads-v${VERSION}.aab"
+  cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads-v${VERSION}_${TIMESTAMP}.apk"
+  cp app/build/outputs/bundle/release/app-release.aab "/proj/release/BetterRoads-v${VERSION}_${TIMESTAMP}.aab"
   cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads.apk"
 fi
 echo "══════ ARTIFACTS ══════"

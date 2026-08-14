@@ -117,7 +117,7 @@ export const roadContracts = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('road_contracts_city_idx').on(t.city), index('road_contracts_published_idx').on(t.published)],
+  (t) => [index('road_contracts_city_idx').on(t.city), index('road_contracts_published_idx').on(t.published), index('road_contracts_contractor_idx').on(t.contractorId)],
 );
 
 /**
@@ -375,3 +375,15 @@ export const segmentSnapshots = pgTable(
 );
 
 export type SegmentSnapshot = typeof segmentSnapshots.$inferSelect;
+
+export const feedbacks = pgTable('feedbacks', {
+  id: serial('id').primaryKey(),
+  name: text('name'),
+  email: text('email'),
+  category: text('category').notNull(),
+  description: text('description').notNull(),
+  source: text('source').notNull(),
+  deviceOs: text('device_os'),
+  location: text('location'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

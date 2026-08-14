@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "9.1.0",
     "@react-native-google-signin/google-signin": "^16.1.4",
+    "country-state-city": "^3.2.1",
     "expo": "~57.0.10",
     "expo-auth-session": "~57.0.6",
     "expo-crypto": "~57.0.1",
@@ -25,7 +27,8 @@
     "expo-status-bar": "~57.0.1",
     "expo-web-browser": "~57.0.2",
     "react": "19.2.3",
-    "react-native": "0.86.2"
+    "react-native": "0.86.2",
+    "react-native-dropdown-picker": "^5.4.6"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

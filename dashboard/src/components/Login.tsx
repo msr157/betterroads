@@ -10,6 +10,13 @@ export default function Login({ onConnect }: { onConnect: (token: string) => voi
 
   const ready = username.trim().length > 0 && password.length > 0;
 
+  async function hashString(message: string) {
+    const msgUint8 = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!ready || busy) return;
@@ -17,9 +24,10 @@ export default function Login({ onConnect }: { onConnect: (token: string) => voi
     setBusy(true);
     setError('');
     try {
+      const hashedPassword = await hashString(password);
       const res = await apiPost<LoginResponse>('/api/admin/auth/login', {
         username: username.trim(),
-        password,
+        password: hashedPassword,
       });
       onConnect(res.token);
     } catch (err) {

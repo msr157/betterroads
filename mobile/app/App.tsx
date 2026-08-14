@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DropDownPicker from 'react-native-dropdown-picker';
+import { State, City } from 'country-state-city';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { JourneyRecorder } from '@/journeyRecorder';
 import type { EngineSnapshot } from '@/sensorEngine';
@@ -10,6 +13,8 @@ import type { VehicleType } from '@/types';
 import { theme } from '@/theme';
 import { GOOGLE_AUTH_ENABLED } from '@/config';
 import { deleteAccount, enterBetterRoads, exchangeGoogleToken, linkGoogleToken, logout, restoreUser, updateProfile, type UserProfile } from '@/auth';
+
+const API_URL = 'https://betterroads.org/api/public';
 
 if (GOOGLE_AUTH_ENABLED) GoogleSignin.configure({ webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID });
 
@@ -81,12 +86,12 @@ export default function App() {
 
   if (booting) return <SafeAreaView style={[styles.root, styles.center]}><ActivityIndicator color={theme.saffronDeep} /></SafeAreaView>;
   if (!user) return <SafeAreaView style={styles.root}><StatusBar style="light" /><View style={[styles.scroll, styles.center]}><Text style={styles.wordmark}>BetterRoads<Text style={styles.accent}>.</Text></Text><Text style={styles.tagline}>Enter now and start recording road quality. You can complete your profile later.</Text><Pressable style={styles.mainButton} onPress={() => void handleEnter()}><Text style={styles.mainButtonText}>Enter BetterRoads</Text></Pressable>{GOOGLE_AUTH_ENABLED && <Pressable style={styles.secondaryButton} onPress={() => void handleGoogleLogin()}><Text style={styles.secondaryButtonText}>Test Google sign-in</Text></Pressable>}{authError && <Text style={styles.warning}>{authError}</Text>}<Text style={styles.footnote}>We create a private contributor ID and unique username for this installation. Google can be linked later.</Text></View></SafeAreaView>;
-  if (editingProfile) return <ProfileEditor user={user} onSaved={(next) => { setUser(next); setEditingProfile(false); }} onDeleted={() => setUser(null)} onCancel={() => setEditingProfile(false)} />;
+  if (editingProfile) return <ProfileEditor user={user} onSaved={(next) => { setUser(next); setEditingProfile(false); }} onDeleted={() => setUser(null)} onCancel={() => setEditingProfile(false)} onLogout={() => void logout().then(() => setUser(null))} />;
   const recording = phase === 'recording';
 
   return <SafeAreaView style={styles.root}><StatusBar style="light" /><ScrollView contentContainerStyle={styles.scroll}>
     <Text style={styles.wordmark}>BetterRoads<Text style={styles.accent}>.</Text></Text><Text style={styles.tagline}>Every ride scores the road.</Text>
-    <View style={styles.accountRow}><View style={{ flex: 1 }}><Text style={styles.accountName}>{user.name}</Text><Text style={styles.accountEmail}>@{user.username}{user.email ? ` · ${user.email}` : ''}</Text></View><Pressable onPress={() => setEditingProfile(true)}><Text style={styles.accountAction}>Profile</Text></Pressable><Pressable onPress={() => void logout().then(() => setUser(null))}><Text style={styles.accountAction}>Log out</Text></Pressable></View>
+    <View style={styles.accountRow}><View style={{ flex: 1 }}><Text style={styles.accountName}>{user.name}</Text><Text style={styles.accountEmail}>@{user.username}{user.email ? ` · ${user.email}` : ''}</Text></View><Pressable disabled={recording} onPress={() => setEditingProfile(true)}><Text style={[styles.accountAction, recording && { opacity: 0.5 }]}>Profile</Text></Pressable></View>
     <Text style={styles.sectionLabel}>Vehicle</Text><View style={styles.chipRow}>{VEHICLES.map((v) => <Pressable key={v.type} disabled={recording} onPress={() => setVehicle(v.type)} style={[styles.chip, vehicle === v.type && styles.chipActive]}><Text style={[styles.chipText, vehicle === v.type && styles.chipTextActive]}>{v.label}</Text></Pressable>)}</View>
     {recording && <View style={styles.card}><View style={styles.statRow}><Stat label="Distance" value={`${((snap?.distanceM ?? 0) / 1000).toFixed(2)} km`} /><Stat label="Live RQI" value={`${Math.round(snap?.liveSegmentRqi ?? 100)}`} /></View><View style={styles.statRow}><Stat label="Events" value={`${snap?.eventCount ?? 0}`} /><Stat label="Segments" value={`${snap?.segmentCount ?? 0}`} /></View>{snap && !snap.isStableMount && <Text style={styles.warning}>Phone looks unmounted — fix it to a dashboard or holder so readings count.</Text>}</View>}
     <Pressable onPress={recording ? stopJourney : startJourney} disabled={phase === 'uploading'} style={[styles.mainButton, recording && styles.mainButtonStop]}>{phase === 'uploading' ? <ActivityIndicator color={theme.ink} /> : <Text style={styles.mainButtonText}>{recording ? 'End journey' : 'Start journey'}</Text>}</Pressable>
@@ -95,17 +100,186 @@ export default function App() {
   </ScrollView></SafeAreaView>;
 }
 
-function ProfileEditor({ user, onSaved, onDeleted, onCancel }: { user: UserProfile; onSaved: (user: UserProfile) => void; onDeleted: () => void; onCancel: () => void }) {
-  const [username, setUsername] = useState(user.username), [name, setName] = useState(user.name), [dateOfBirth, setDateOfBirth] = useState(user.dateOfBirth ?? ''), [gender, setGender] = useState(user.gender ?? ''), [genderSelfDescription, setGenderSelfDescription] = useState(user.genderSelfDescription ?? ''), [city, setCity] = useState(user.city ?? '');
+function ProfileEditor({ user, onSaved, onDeleted, onCancel, onLogout }: { user: UserProfile; onSaved: (user: UserProfile) => void; onDeleted: () => void; onCancel: () => void; onLogout: () => void }) {
+  const [username, setUsername] = useState(user.username), [name, setName] = useState(user.name), [dateOfBirth, setDateOfBirth] = useState(user.dateOfBirth ?? ''), [gender, setGender] = useState(user.gender ?? ''), [genderSelfDescription, setGenderSelfDescription] = useState(user.genderSelfDescription ?? '');
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  
+  const initialParts = (user.city || '').split(', ');
+  const [selectedStateCode, setSelectedStateCode] = useState<string | null>(initialParts[1] || null);
+  const [selectedCityName, setSelectedCityName] = useState<string | null>(initialParts[0] || null);
+  
+  const [stateOpen, setStateOpen] = useState(false);
+  const [cityOpen, setCityOpen] = useState(false);
+  const stateItems = State.getStatesOfCountry('IN').map(s => ({ label: s.name, value: s.isoCode }));
+  const cityItems = selectedStateCode ? City.getCitiesOfState('IN', selectedStateCode).map(c => ({ label: c.name, value: c.name })) : [];
+
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const maxDate = new Date();
+  maxDate.setFullYear(maxDate.getFullYear() - 12);
+  
+  const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      const yyyy = selectedDate.getFullYear();
+      const mm = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(selectedDate.getDate()).padStart(2, '0');
+      setDateOfBirth(`${yyyy}-${mm}-${dd}`);
+    }
+  };
+
   const [publicLeaderboard, setPublicLeaderboard] = useState(user.publicLeaderboard), [error, setError] = useState<string | null>(null), [saving, setSaving] = useState(false);
-  const save = async () => { const normalizedUsername = username.trim().toLowerCase(); if (!/^[a-z][a-z0-9_]{2,23}$/.test(normalizedUsername)) return setError('Username must be 3-24 lowercase letters, numbers, or underscores, starting with a letter.'); if (!name.trim()) return setError('Name is required.'); if (dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return setError('Date of birth must be YYYY-MM-DD.'); setSaving(true); setError(null); try { onSaved(await updateProfile({ username: normalizedUsername, name: name.trim(), dateOfBirth: dateOfBirth || null, gender: gender || null, genderSelfDescription: genderSelfDescription || null, city: city.trim() || null, publicLeaderboard })); } catch (e) { setError(e instanceof Error ? e.message : 'Could not save profile.'); setSaving(false); } };
+  const save = async () => { const normalizedUsername = username.trim().toLowerCase(); if (!/^[a-z][a-z0-9_]{2,23}$/.test(normalizedUsername)) return setError('Username must be 3-24 lowercase letters, numbers, or underscores, starting with a letter.'); if (!name.trim()) return setError('Name is required.'); if (dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return setError('Date of birth must be YYYY-MM-DD.'); setSaving(true); setError(null); try { const finalCity = (selectedCityName && selectedStateCode) ? `${selectedCityName}, ${selectedStateCode}` : null; onSaved(await updateProfile({ username: normalizedUsername, name: name.trim(), dateOfBirth: dateOfBirth || null, gender: gender || null, genderSelfDescription: genderSelfDescription || null, city: finalCity, publicLeaderboard })); } catch (e) { setError(e instanceof Error ? e.message : 'Could not save profile.'); setSaving(false); } };
   const linkGoogle = async () => { setSaving(true); setError(null); try { await GoogleSignin.hasPlayServices(); const response = await GoogleSignin.signIn(); if (response.type !== 'success' || !response.data.idToken) { setSaving(false); return; } onSaved(await linkGoogleToken(response.data.idToken)); } catch (e: any) { if (e.code !== 'SIGN_IN_CANCELLED') setError(e.message || 'Could not link Google.'); setSaving(false); } };
   const confirmDelete = () => Alert.alert('Delete account?', 'Your profile and account links will be permanently removed. Anonymized road measurements remain in the public road dataset.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void deleteAccount().then(onDeleted).catch((e) => setError(e instanceof Error ? e.message : 'Could not delete account.')) }]);
-  return <SafeAreaView style={styles.root}><StatusBar style="light" /><ScrollView contentContainerStyle={styles.scroll}><Text style={styles.wordmark}>Your profile</Text><Field label="Contributor ID" value={user.publicId} editable={false} /><Field label="Username *" value={username} onChangeText={setUsername} /><Field label="Name *" value={name} onChangeText={setName} /><Field label="Google email" value={user.email ?? 'Not linked'} editable={false} />{GOOGLE_AUTH_ENABLED && !user.googleLinked && <Pressable style={styles.secondaryButton} disabled={saving} onPress={() => void linkGoogle()}><Text style={styles.secondaryButtonText}>Link Google account (test)</Text></Pressable>}<Field label="Date of birth (YYYY-MM-DD)" value={dateOfBirth} onChangeText={setDateOfBirth} /><Text style={styles.sectionLabel}>Gender (optional)</Text><View style={styles.chipRow}>{['', 'male', 'female', 'non-binary', 'self-described', 'prefer-not-to-say'].map((v) => <Pressable key={v || 'none'} onPress={() => setGender(v)} style={[styles.chip, gender === v && styles.chipActive]}><Text style={[styles.chipText, gender === v && styles.chipTextActive]}>{v || 'Not set'}</Text></Pressable>)}</View>{gender === 'self-described' && <Field label="Describe your gender" value={genderSelfDescription} onChangeText={setGenderSelfDescription} />}<Field label="City" value={city} onChangeText={setCity} /><Pressable style={styles.consentRow} onPress={() => setPublicLeaderboard((v) => !v)}><View style={[styles.checkbox, publicLeaderboard && styles.checkboxActive]} /><Text style={[styles.message, { flex: 1 }]}>Show my name and contribution totals publicly</Text></Pressable>{error && <Text style={styles.warning}>{error}</Text>}<Pressable style={styles.mainButton} disabled={saving} onPress={() => void save()}>{saving ? <ActivityIndicator color={theme.ink} /> : <Text style={styles.mainButtonText}>Save profile</Text>}</Pressable><Pressable onPress={onCancel}><Text style={styles.cancel}>Cancel</Text></Pressable><Pressable onPress={confirmDelete}><Text style={[styles.cancel, { color: theme.danger }]}>Delete account</Text></Pressable></ScrollView></SafeAreaView>;
+  return <SafeAreaView style={styles.root}><StatusBar style="light" /><ScrollView contentContainerStyle={styles.scroll}><Text style={styles.wordmark}>Your profile</Text><Field label="Contributor ID" value={user.publicId} editable={false} /><Field label="Username *" value={username} onChangeText={setUsername} /><Field label="Name *" value={name} onChangeText={setName} /><Field label="Google email" value={user.email ?? 'Not linked'} editable={false} />{GOOGLE_AUTH_ENABLED && !user.googleLinked && <Pressable style={styles.secondaryButton} disabled={saving} onPress={() => void linkGoogle()}><Text style={styles.secondaryButtonText}>Link Google account (test)</Text></Pressable>}
+    
+    <View>
+      <Text style={styles.sectionLabel}>Date of birth (Must be 12+)</Text>
+      <Pressable onPress={() => setShowDatePicker(true)}>
+        <View style={styles.input}>
+          <Text style={{ color: dateOfBirth ? theme.ink : theme.ink3 }}>{dateOfBirth || 'YYYY-MM-DD'}</Text>
+        </View>
+      </Pressable>
+      {showDatePicker && (
+        <DateTimePicker
+          value={dateOfBirth ? new Date(dateOfBirth) : maxDate}
+          mode="date"
+          display="default"
+          maximumDate={maxDate}
+          onChange={onDateChange}
+        />
+      )}
+    </View>
+
+    <Text style={styles.sectionLabel}>Gender (optional)</Text><View style={styles.chipRow}>{['', 'male', 'female', 'non-binary', 'self-described', 'prefer-not-to-say'].map((v) => <Pressable key={v || 'none'} onPress={() => setGender(v)} style={[styles.chip, gender === v && styles.chipActive]}><Text style={[styles.chipText, gender === v && styles.chipTextActive]}>{v || 'Not set'}</Text></Pressable>)}</View>{gender === 'self-described' && <Field label="Describe your gender" value={genderSelfDescription} onChangeText={setGenderSelfDescription} />}
+    
+    <View style={{ zIndex: 2000 }}>
+      <Text style={styles.sectionLabel}>State</Text>
+      <DropDownPicker
+        open={stateOpen}
+        value={selectedStateCode}
+        items={stateItems}
+        setOpen={setStateOpen}
+        setValue={setSelectedStateCode}
+        listMode="MODAL"
+        searchable={true}
+        searchPlaceholder="Search state..."
+        placeholder="Select state"
+        style={styles.dropdown}
+        textStyle={{ color: theme.ink }}
+      />
+    </View>
+    <View style={{ zIndex: 1000 }}>
+      <Text style={styles.sectionLabel}>City</Text>
+      <DropDownPicker
+        open={cityOpen}
+        value={selectedCityName}
+        items={cityItems}
+        setOpen={setCityOpen}
+        setValue={setSelectedCityName}
+        listMode="MODAL"
+        searchable={true}
+        searchPlaceholder="Search city..."
+        placeholder={selectedStateCode ? "Select city" : "Select state first"}
+        disabled={!selectedStateCode}
+        style={[styles.dropdown, !selectedStateCode && { opacity: 0.5 }]}
+        textStyle={{ color: theme.ink }}
+      />
+    </View>
+
+    <Pressable style={styles.consentRow} onPress={() => setPublicLeaderboard((v) => !v)}><View style={[styles.checkbox, publicLeaderboard && styles.checkboxActive]} /><Text style={[styles.message, { flex: 1 }]}>Show my name and contribution totals publicly</Text></Pressable>{error && <Text style={styles.warning}>{error}</Text>}
+    <Pressable style={styles.mainButton} disabled={saving} onPress={() => void save()}>{saving ? <ActivityIndicator color={theme.ink} /> : <Text style={styles.mainButtonText}>Save profile</Text>}</Pressable>
+    <Pressable style={[styles.secondaryButton, { marginTop: 16 }]} onPress={() => {
+      if (!user.name || !user.email) {
+        Alert.alert('Profile Incomplete', 'Please set your name and email above before sending feedback.');
+      } else {
+        setFeedbackOpen(true);
+      }
+    }}><Text style={styles.secondaryButtonText}>Send Feedback</Text></Pressable>
+    <Pressable onPress={onCancel}><Text style={styles.cancel}>Cancel</Text></Pressable><Pressable onPress={onLogout}><Text style={[styles.cancel, { color: theme.saffronDeep }]}>Log out</Text></Pressable><Pressable onPress={confirmDelete}><Text style={[styles.cancel, { color: theme.danger }]}>Delete account</Text></Pressable>
+    <FeedbackModal visible={feedbackOpen} onClose={() => setFeedbackOpen(false)} user={user} />
+    </ScrollView></SafeAreaView>;
 }
 
 function Field(props: { label: string; value: string; onChangeText?: (text: string) => void; editable?: boolean }) { return <View><Text style={styles.sectionLabel}>{props.label}</Text><TextInput style={[styles.input, props.editable === false && styles.inputDisabled]} placeholderTextColor={theme.ink3} {...props} /></View>; }
 function Stat({ label, value }: { label: string; value: string }) { return <View style={styles.stat}><Text style={styles.statLabel}>{label}</Text><Text style={styles.statValue}>{value}</Text></View>; }
+
+function FeedbackModal({ visible, onClose, user }: { visible: boolean; onClose: () => void; user: UserProfile | null }) {
+  const [category, setCategory] = useState('Suggestion');
+  const [description, setDescription] = useState('');
+  const [captchaNum1, setCaptchaNum1] = useState(Math.floor(Math.random() * 9) + 1);
+  const [captchaNum2, setCaptchaNum2] = useState(Math.floor(Math.random() * 9) + 1);
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  
+  const submit = async () => {
+    if (!description.trim()) return Alert.alert('Error', 'Please enter your feedback.');
+    if (parseInt(captchaAnswer) !== captchaNum1 + captchaNum2) return Alert.alert('Error', 'Incorrect math answer. Please try again.');
+    
+    setSubmitting(true);
+    try {
+      const deviceOs = Platform.OS;
+      let location = 'Unknown';
+      try { location = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) {}
+
+      const res = await fetch(`${API_URL}/feedback`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: user?.name, email: user?.email, category, description, source: 'mobile', deviceOs, location })
+      });
+      if (!res.ok) throw new Error('Failed to submit');
+      setSuccess(true);
+      setTimeout(() => { 
+        setSuccess(false); 
+        setDescription(''); 
+        setCaptchaAnswer('');
+        setCaptchaNum1(Math.floor(Math.random() * 9) + 1);
+        setCaptchaNum2(Math.floor(Math.random() * 9) + 1);
+        onClose(); 
+      }, 2000);
+    } catch {
+      Alert.alert('Error', 'Failed to send feedback. Please try again.');
+    } finally { setSubmitting(false); }
+  };
+
+  if (!visible) return null;
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={{ backgroundColor: theme.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 }}>
+          {success ? (
+            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+              <Text style={{ fontSize: 24, color: theme.ink, fontWeight: '700' }}>Thank you!</Text>
+              <Text style={{ fontSize: 16, color: theme.ink2, marginTop: 8 }}>Your feedback has been submitted.</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={{ fontSize: 20, color: theme.ink, fontWeight: '700', marginBottom: 16 }}>Send Feedback</Text>
+              <Text style={styles.sectionLabel}>Category</Text>
+              <View style={styles.chipRow}>
+                {['Suggestion', 'Bug Report', 'General'].map(c => (
+                  <Pressable key={c} onPress={() => setCategory(c)} style={[styles.chip, category === c && styles.chipActive]}>
+                    <Text style={[styles.chipText, category === c && styles.chipTextActive]}>{c}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Description</Text>
+              <TextInput style={[styles.input, { minHeight: 100, textAlignVertical: 'top' }]} multiline placeholder="Tell us what's on your mind..." placeholderTextColor={theme.ink3} value={description} onChangeText={setDescription} />
+              
+              <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Spam Check: What is {captchaNum1} + {captchaNum2}?</Text>
+              <TextInput style={[styles.input, { marginBottom: 16 }]} keyboardType="numeric" placeholder="Enter the sum" placeholderTextColor={theme.ink3} value={captchaAnswer} onChangeText={setCaptchaAnswer} />
+              
+              <Pressable style={styles.mainButton} disabled={submitting} onPress={submit}>
+                {submitting ? <ActivityIndicator color={theme.ink} /> : <Text style={styles.mainButtonText}>Submit Feedback</Text>}
+              </Pressable>
+            </>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.bg }, center: { justifyContent: 'center' }, scroll: { padding: 24, paddingTop: 64, gap: 12 }, wordmark: { color: theme.ink, fontSize: 32, fontWeight: '800', letterSpacing: -1 }, accent: { color: theme.saffron }, tagline: { color: theme.ink2, fontSize: 15, marginBottom: 16 },
@@ -114,5 +288,7 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderColor: theme.line, backgroundColor: theme.bg2, borderRadius: 16, padding: 16, marginTop: 16, gap: 12 }, statRow: { flexDirection: 'row', gap: 12 }, stat: { flex: 1 }, statLabel: { color: theme.ink3, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase' }, statValue: { color: theme.ink, fontSize: 26, fontWeight: '700', marginTop: 2 }, warning: { color: theme.warn, fontSize: 13, lineHeight: 18 },
   mainButton: { backgroundColor: theme.saffronDeep, borderRadius: 999, alignItems: 'center', paddingVertical: 16, marginTop: 24 }, mainButtonStop: { backgroundColor: theme.danger }, mainButtonText: { color: theme.ink, fontSize: 17, fontWeight: '800' }, message: { color: theme.ink, fontSize: 14, lineHeight: 20, marginTop: 8 }, pending: { color: theme.ink2, fontSize: 13 }, footnote: { color: theme.ink3, fontSize: 12, lineHeight: 18, marginTop: 24 },
   secondaryButton: { borderWidth: 1, borderColor: theme.line, borderRadius: 999, alignItems: 'center', paddingVertical: 14, marginTop: 8 }, secondaryButtonText: { color: theme.ink2, fontSize: 15, fontWeight: '700' },
-  input: { borderWidth: 1, borderColor: theme.line, borderRadius: 10, color: theme.ink, paddingHorizontal: 12, paddingVertical: 11, marginTop: 6 }, inputDisabled: { color: theme.ink3, backgroundColor: theme.bg2 }, consentRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 }, checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: theme.line }, checkboxActive: { backgroundColor: theme.saffronDeep, borderColor: theme.saffronDeep }, cancel: { color: theme.ink2, textAlign: 'center', padding: 14 },
+  input: { borderWidth: 1, borderColor: theme.line, borderRadius: 10, color: theme.ink, paddingHorizontal: 12, paddingVertical: 11, marginTop: 6 }, inputDisabled: { color: theme.ink3, backgroundColor: theme.bg2 },
+  dropdown: { borderWidth: 1, borderColor: theme.line, borderRadius: 10, backgroundColor: 'transparent', marginTop: 6 },
+  consentRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 }, checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: theme.line }, checkboxActive: { backgroundColor: theme.saffronDeep, borderColor: theme.saffronDeep }, cancel: { color: theme.ink2, textAlign: 'center', padding: 14 },
 });

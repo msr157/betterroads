@@ -86,3 +86,8 @@ export const rateLimitMiddleware = makeMiddleware(new SlidingWindowLimiter(6, 60
  */
 export const ingestRateLimitMiddleware = makeMiddleware(new SlidingWindowLimiter(60, 60_000));
 
+/** Global baseline spam protection for all APIs: 100 requests per IP per minute. */
+export const globalApiRateLimitMiddleware = makeMiddleware(new SlidingWindowLimiter(100, 60_000));
+
+/** Ultra-strict limiter for public feedback to prevent database spamming: 3 requests per IP per minute. */
+export const feedbackRateLimitMiddleware = makeMiddleware(new SlidingWindowLimiter(3, 60_000));

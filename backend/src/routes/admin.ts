@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { administrators, adminSessions, contractors, devices, journeys, roadContracts, waitlistSignups } from '../db/schema.js';
+import { administrators, adminSessions, contractors, devices, journeys, roadContracts, waitlistSignups, feedbacks } from '../db/schema.js';
 import { rateLimitMiddleware } from '../middleware/rateLimit.js';
 import { nearestCity } from '../lib/india.js';
 import { bearerToken, createAdminSession, hashPassword, hashToken, resolveAdminSession, verifyPassword } from '../lib/auth.js';
@@ -469,6 +469,13 @@ router.get('/map/export.geojson', zValidator('query', mapQuerySchema), async (c)
     ...contractsRows.map((r) => ({ type: 'Feature', properties: { layer: 'contract', id: r.id, roadName: r.roadName, city: r.city, status: r.status, published: r.published }, geometry: r.geometry })),
   ];
   return c.json({ type: 'FeatureCollection', features }, 200, { 'Content-Disposition': 'attachment; filename="betterroads-map.geojson"' });
+});
+
+router.get('/feedback', async (c) => {
+  const rows = await db.select()
+    .from(feedbacks)
+    .orderBy(desc(feedbacks.createdAt));
+  return c.json({ ok: true, feedback: rows });
 });
 
 export { router as adminRouter };

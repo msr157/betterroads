@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { corsMiddleware } from './middleware/cors.js';
+import { globalApiRateLimitMiddleware } from './middleware/rateLimit.js';
 import { waitlistRouter } from './routes/waitlist.js';
 import { travelDataRouter } from './routes/traveldata.js';
 import { publicRoadsRouter } from './routes/publicRoads.js';
@@ -28,6 +29,10 @@ app.use('*', secureHeaders());
 
 // CORS — configured via CORS_ORIGINS env var.
 app.use('*', corsMiddleware);
+
+// Global Rate Limiting for all API endpoints (spam protection)
+app.use('/api/*', globalApiRateLimitMiddleware);
+app.use('/user/*', globalApiRateLimitMiddleware);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 

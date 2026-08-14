@@ -1,6 +1,6 @@
-import { createHmac, randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { and, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { administrators, adminSessions, userSessions, users } from '../db/schema.js';
 
@@ -48,6 +48,24 @@ export async function createUserSession(userId: number, userAgent?: string) {
 }
 
 export async function createAdminSession(administratorId: number, userAgent?: string, ipAddress?: string) {
+  const activeSessions = await db.select({ id: adminSessions.id })
+    .from(adminSessions)
+    .where(and(
+      eq(adminSessions.administratorId, administratorId),
+      isNull(adminSessions.revokedAt),
+      gt(adminSessions.expiresAt, new Date())
+    ))
+    .orderBy(desc(adminSessions.createdAt));
+
+  if (activeSessions.length >= 2) {
+    const toRevoke = activeSessions.slice(1).map(s => s.id);
+    if (toRevoke.length > 0) {
+      await db.update(adminSessions)
+        .set({ revokedAt: new Date() })
+        .where(inArray(adminSessions.id, toRevoke));
+    }
+  }
+
   const credential = newCredential();
   const expiresAt = new Date(Date.now() + ADMIN_SESSION_HOURS * 3_600_000);
   await db.insert(adminSessions).values({
@@ -106,7 +124,7 @@ export async function bootstrapAdministrator(): Promise<void> {
     username: username.trim(),
     displayName: (process.env.ADMIN_BOOTSTRAP_NAME ?? username).trim(),
     email: process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase() || null,
-    passwordHash: await hashPassword(password),
+    passwordHash: await hashPassword(createHash('sha256').update(password).digest('hex')),
   }).onConflictDoNothing();
   console.log(`[auth] bootstrapped administrator ${username}`);
 }
