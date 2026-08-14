@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, type Variants } from "framer-motion";
 import MagneticButton from "@/components/ui/MagneticButton";
 import { SocialIcon } from "@/components/ui/SocialIcons";
@@ -6,7 +6,10 @@ import Countdown from "@/components/countdown/Countdown";
 import VideoModal from "@/components/ui/VideoModal";
 import { useWaitlist } from "@/components/providers/WaitlistProvider";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { SITE, SOCIALS, LEGAL } from "@/lib/constants";
+import { SITE, SOCIALS, LEGAL, LAUNCH_DATE_ISO } from "@/lib/constants";
+import Confetti from "@/components/ui/Confetti";
+import Flag from "@/components/ui/Flag";
+
 
 const container: Variants = {
   hidden: {},
@@ -116,61 +119,8 @@ export default function Hero() {
             To fix the roads, let&apos;s fix the system.
           </motion.p>
 
-          {/* ── The countdown — real date, real urgency ────────────────── */}
-          <motion.div variants={fade} className="mt-12 w-full max-w-3xl">
-            <p className="eyebrow mb-4">Launching 15 August 2026</p>
-            <Countdown />
-          </motion.div>
-
-          {/* ── The two doors: join, or peek behind the curtain ────────── */}
-          <motion.div
-            variants={fade}
-            className="mt-12 flex flex-col items-center gap-6 sm:flex-row sm:gap-8"
-          >
-            <span className="relative">
-              {/* soft saffron under-glow */}
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-0 -z-10 rounded-full bg-saffron/30 blur-2xl"
-              />
-              <MagneticButton
-                onClick={open}
-                aria-label="Join the movement"
-                className="rounded-full bg-saffron px-11 py-4.5 font-display text-lg font-semibold text-paper shadow-[0_18px_44px_-14px_rgba(224,97,28,0.7)] transition-colors hover:bg-ink"
-              >
-                Join the movement
-              </MagneticButton>
-            </span>
-
-            <button
-              onClick={() => setVideoOpen(true)}
-              className="group inline-flex items-center gap-3 font-display text-base font-semibold text-ink transition-colors hover:text-saffron"
-            >
-              <span className="flex h-11 w-11 items-center justify-center rounded-full border border-line-strong text-ink transition-colors group-hover:border-saffron group-hover:text-saffron">
-                {/* play glyph */}
-                <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 h-4 w-4">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </span>
-              What is BetterRoads?
-            </button>
-          </motion.div>
-
-          {/* ── Two quieter doors: the app, and the living map ─────────── */}
-          <motion.div
-            variants={fade}
-            className="mt-9 flex flex-wrap items-center justify-center gap-x-8 gap-y-3"
-          >
-            <a href="/app" className="link-underline text-sm font-semibold text-saffron">
-              Download the Android app →
-            </a>
-            <a
-              href="/map"
-              className="link-underline text-sm font-medium text-ink-2 transition-colors hover:text-ink"
-            >
-              Explore the public panel →
-            </a>
-          </motion.div>
+          {/* ── Dynamic Launch Content ────────────────── */}
+          <LaunchContent openWaitlist={open} setVideoOpen={setVideoOpen} />
         </div>
 
         {/* ── Footer hairline — the single recurring tricolor motif ────── */}
@@ -196,5 +146,104 @@ export default function Hero() {
 
       <VideoModal open={videoOpen} onClose={() => setVideoOpen(false)} />
     </section>
+  );
+}
+
+function LaunchContent({ openWaitlist, setVideoOpen }: { openWaitlist: () => void; setVideoOpen: (v: boolean) => void }) {
+  const [isLaunched, setIsLaunched] = useState(() => Date.now() >= new Date(LAUNCH_DATE_ISO).getTime());
+
+  useEffect(() => {
+    if (isLaunched) return;
+    const interval = setInterval(() => {
+      if (Date.now() >= new Date(LAUNCH_DATE_ISO).getTime()) setIsLaunched(true);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isLaunched]);
+
+  if (isLaunched) {
+    return (
+      <motion.div variants={fade} className="mt-12 flex w-full flex-col items-center">
+        <Confetti trigger={1} />
+        <div className="flex items-center gap-4">
+          <Flag className="w-12 h-8 rounded-sm shadow-sm" />
+          <p className="font-display text-[clamp(1.5rem,4vw,2.5rem)] font-bold text-ink">
+            Happy Independence Day!
+          </p>
+          <Flag className="w-12 h-8 rounded-sm shadow-sm" />
+        </div>
+        <p className="mt-4 max-w-lg text-center font-medium text-ink-2">
+          We are officially live. Join the citizen movement to fix India's roads today.
+        </p>
+        <div className="mt-8 flex flex-col items-center gap-6 sm:flex-row sm:gap-8">
+          <a
+            href="/app"
+            className="rounded-full bg-saffron px-11 py-4.5 font-display text-lg font-semibold text-paper shadow-[0_18px_44px_-14px_rgba(224,97,28,0.7)] transition-colors hover:bg-ink"
+          >
+            Download the App
+          </a>
+          <a
+            href="/map"
+            className="font-medium text-ink-2 transition-colors hover:text-ink"
+          >
+            Explore the public map →
+          </a>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <>
+      <motion.div variants={fade} className="mt-12 w-full max-w-3xl">
+        <p className="eyebrow mb-4">Launching 15 August 2026</p>
+        <Countdown />
+      </motion.div>
+
+      <motion.div
+        variants={fade}
+        className="mt-12 flex flex-col items-center gap-6 sm:flex-row sm:gap-8"
+      >
+        <span className="relative">
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-10 rounded-full bg-saffron/30 blur-2xl"
+          />
+          <MagneticButton
+            onClick={openWaitlist}
+            aria-label="Join the movement"
+            className="rounded-full bg-saffron px-11 py-4.5 font-display text-lg font-semibold text-paper shadow-[0_18px_44px_-14px_rgba(224,97,28,0.7)] transition-colors hover:bg-ink"
+          >
+            Join the movement
+          </MagneticButton>
+        </span>
+
+        <button
+          onClick={() => setVideoOpen(true)}
+          className="group inline-flex items-center gap-3 font-display text-base font-semibold text-ink transition-colors hover:text-saffron"
+        >
+          <span className="flex h-11 w-11 items-center justify-center rounded-full border border-line-strong text-ink transition-colors group-hover:border-saffron group-hover:text-saffron">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 h-4 w-4">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </span>
+          What is BetterRoads?
+        </button>
+      </motion.div>
+
+      <motion.div
+        variants={fade}
+        className="mt-9 flex flex-wrap items-center justify-center gap-x-8 gap-y-3"
+      >
+        <a href="/app" className="link-underline text-sm font-semibold text-saffron">
+          Download the Android app →
+        </a>
+        <a
+          href="/map"
+          className="link-underline text-sm font-medium text-ink-2 transition-colors hover:text-ink"
+        >
+          Explore the public panel →
+        </a>
+      </motion.div>
+    </>
   );
 }
