@@ -164,6 +164,7 @@ export default function MapPage() {
   const [stats, setStats] = useState<PublicStats | null>(null);
   const [panel, setPanel] = useState<'network' | 'contributors' | 'contracts'>('network');
   const [panelExpanded, setPanelExpanded] = useState(typeof window !== 'undefined' ? window.innerWidth >= 640 : true);
+  const [mobileView, setMobileView] = useState<'none' | 'legend' | 'panel'>('none');
   const [period, setPeriod] = useState<'monthly' | 'lifetime'>('monthly');
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [contracts, setContracts] = useState<PublicContract[]>([]);
@@ -493,11 +494,44 @@ export default function MapPage() {
             absolutely-positioned box. */}
         <div ref={containerRef} className="h-full w-full" />
 
-        <div className="absolute left-3 top-3 sm:left-4 sm:top-4">
+        {/* Desktop Legend */}
+        <div className="absolute left-4 top-4 hidden sm:block">
           <MapLegend />
         </div>
 
-        <aside className="absolute right-3 top-16 z-10 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-line bg-paper/95 shadow-xl backdrop-blur sm:right-4 sm:top-4 flex flex-col">
+        {/* Mobile Legend Toggle */}
+        <div className="absolute left-3 top-3 sm:hidden z-20">
+          {mobileView === 'legend' ? (
+            <div className="relative">
+              <MapLegend />
+              <button 
+                onClick={() => setMobileView('none')}
+                className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper shadow-lg"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={() => setMobileView('legend')}
+              className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper/95 shadow-xl backdrop-blur text-xl font-bold text-ink hover:bg-paper"
+            >
+              ℹ️
+            </button>
+          )}
+        </div>
+
+        {/* Desktop & Mobile Panel Toggle */}
+        <div className={`absolute right-3 top-3 z-20 sm:hidden ${mobileView === 'panel' ? 'hidden' : 'block'}`}>
+          <button 
+            onClick={() => setMobileView('panel')}
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper/95 shadow-xl backdrop-blur text-xl font-bold text-ink hover:bg-paper"
+          >
+            📊
+          </button>
+        </div>
+
+        <aside className={`absolute right-3 top-3 z-10 flex-col overflow-hidden rounded-2xl border border-line bg-paper/95 shadow-xl backdrop-blur sm:right-4 sm:top-4 ${mobileView === 'panel' ? 'flex w-[min(22rem,calc(100vw-1.5rem))]' : 'hidden sm:flex sm:w-[min(22rem,calc(100vw-1.5rem))]'}`}>
           <nav className="flex border-b border-line">
             {(['network', 'contributors', 'contracts'] as const).map((p) => (
               <button 
@@ -512,9 +546,16 @@ export default function MapPage() {
               </button>
             ))}
             <button 
+              aria-label="Close panel"
+              onClick={() => setMobileView('none')} 
+              className="flex items-center justify-center border-l border-line px-3 text-xs font-bold text-ink sm:hidden hover:bg-paper-2"
+            >
+              ✕
+            </button>
+            <button 
               aria-label={panelExpanded ? "Collapse panel" : "Expand panel"}
               onClick={() => setPanelExpanded(e => !e)} 
-              className="flex items-center justify-center border-l border-line px-3 text-xs font-bold text-ink-2 hover:bg-paper-2 hover:text-ink"
+              className="hidden sm:flex items-center justify-center border-l border-line px-3 text-xs font-bold text-ink-2 hover:bg-paper-2 hover:text-ink"
             >
               {panelExpanded ? '▲' : '▼'}
             </button>

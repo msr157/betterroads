@@ -5,6 +5,7 @@ const API_URL = 'https://betterroads.org/api/public';
 export default function FeedbackWidget() {
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState('Suggestion');
+  const [categoryOpen, setCategoryOpen] = useState(false);
   const [description, setDescription] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -61,7 +62,7 @@ export default function FeedbackWidget() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-50 rounded-full bg-ink px-5 py-3 text-sm font-medium tracking-wide text-bg shadow-lg transition-transform hover:-translate-y-1 hover:shadow-xl"
+        className="fixed bottom-6 right-6 z-50 rounded-full bg-ink px-5 py-3 text-sm font-medium tracking-wide text-paper shadow-lg transition-transform hover:-translate-y-1 hover:shadow-xl"
       >
         Send Feedback
       </button>
@@ -79,17 +80,33 @@ export default function FeedbackWidget() {
               <form onSubmit={submit} className="space-y-4">
                 <h3 className="text-xl font-bold tracking-tight text-ink">Send Feedback</h3>
                 
-                <div>
+                <div className="relative">
                   <label className="mb-1 block text-sm font-medium text-ink-2">Category</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full rounded-xl border border-line bg-transparent px-3 py-2 text-ink focus:border-ink focus:outline-none"
+                  <button
+                    type="button"
+                    onClick={() => setCategoryOpen(!categoryOpen)}
+                    className="flex w-full items-center justify-between rounded-xl border border-line bg-transparent px-3 py-2 text-ink focus:border-ink focus:outline-none"
                   >
-                    <option value="Suggestion">Suggestion</option>
-                    <option value="Bug Report">Bug Report</option>
-                    <option value="General">General</option>
-                  </select>
+                    {category}
+                    <span className="text-xs text-ink-3">▼</span>
+                  </button>
+                  {categoryOpen && (
+                    <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-10 overflow-hidden rounded-xl border border-line bg-paper shadow-lg">
+                      {['Suggestion', 'Bug Report', 'General'].map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setCategory(cat);
+                            setCategoryOpen(false);
+                          }}
+                          className="block w-full px-3 py-2 text-left text-sm text-ink hover:bg-paper-2"
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -147,9 +164,9 @@ export default function FeedbackWidget() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="rounded-xl bg-ink px-6 py-2 font-medium text-bg disabled:opacity-50"
+                    className="rounded-xl bg-ink px-6 py-2 font-medium text-paper disabled:opacity-50"
                   >
-                    {submitting ? 'Sending...' : 'Submit'}
+                    {submitting ? 'Sending...' : 'Send'}
                   </button>
                 </div>
               </form>
