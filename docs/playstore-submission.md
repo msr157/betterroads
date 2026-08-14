@@ -1,7 +1,8 @@
 # BetterRoads — Google Play Submission Guide
 
-Verified against Google Play policy as of **2026-08-05**. App: `org.betterroads.app`,
-versionName 1.0.0, versionCode 1, built with Expo SDK 57 / React Native 0.86.
+Verified against Google Play policy as of **2026-08-05** and updated for the
+current build on **2026-08-14**. App: `org.betterroads.app`, versionName 1.1.0,
+versionCode 2, built with Expo SDK 57 / React Native 0.86.
 
 ---
 
@@ -33,7 +34,7 @@ just the upload key, so it can be reset if ever lost.
 | 64-bit native code | ✅ RN 0.86 ships arm64-v8a |
 | Privacy policy URL on the store listing **and** in-app reachable | ✅ https://betterroads.org/privacy — updated with a "BetterRoads mobile app" section covering location, motion sensors, install UUID. **Deploy the website before submitting.** |
 | Data safety form | Fill using §4 below |
-| Account deletion policy | Required: Google sign-in is mandatory. Users can delete the account in Profile; use https://betterroads.org/delete-account as the Play web URL. |
+| Account deletion policy | Required because the app creates a device-linked contributor account. Users can delete the account in Profile; use https://betterroads.org/delete-account as the Play web URL. |
 | Background location declaration | N/A — we request foreground `ACCESS_FINE_LOCATION` only, no background location, no foreground service. This avoids Play's hardest review track. |
 | Sensitive-permission video declaration | N/A (only needed for background location / SMS / call log) |
 | Ads declaration | "No ads" |
@@ -62,7 +63,7 @@ just the upload key, so it can be reset if ever lost.
 | Location → Precise location | Yes | No | App functionality | Collection is optional (only during a journey the user starts). Not ephemeral (stored). |
 | Device or other IDs | Yes | No | App functionality | Random install UUID; not the advertising ID. |
 | Personal info → Name | Yes | No | Account management, optional public leaderboard | Required display name; public only after explicit opt-in. |
-| Personal info → Email address | Yes | No | Account management, security | Immutable verified Google email; never public. |
+| Personal info → Email address | Optional | No | Account management, security | Collected only if Google is linked; never public. |
 | Personal info → Other info | Optional | No | Profile management | Optional DOB, gender, and city; never public. |
 | App activity → Other user actions | Yes | No | App functionality | Journey recordings: vehicle type, detected road events, road-quality scores. |
 

@@ -78,7 +78,7 @@ Whenever setting up a new app like `betterroads.org`, ensure the following:
 | --- | --- |
 | Frontend (website + public panel) | Dokploy app `9xfHtE9Fq5Hv7Nhwu7o7_` / swarm `app-override-online-sensor-4hx2u6`, root `Dockerfile`, hosts `betterroads.org`, `www` |
 | Backend API | Dokploy app `h57LneJzqfvP6KqBUJVvG` / swarm `app-compress-multi-byte-card-7nr73c`, `backend/Dockerfile`, routed as path `/api` on `betterroads.org`, `www`, `betterroads.rackops.in`, and `admin.betterroads.org` |
-| Admin dashboard | Dokploy app `GS0TBOtoHCfX-92WgBK4G` / swarm `betterroads-dashboard-pv2edn`, `dashboard/Dockerfile`. Live at `betterroads.rackops.in`; `admin.betterroads.org` is fully wired (tunnel ingress + Dokploy domain) but **waits on a Cloudflare DNS CNAME** `admin → 564e4c31-a321-4bcb-8f53-6d330ca762c9.cfargotunnel.com` (the stored API token lacks DNS-edit rights) |
+| Admin dashboard | Dokploy app `GS0TBOtoHCfX-92WgBK4G` / swarm `betterroads-dashboard-pv2edn`, `dashboard/Dockerfile`. Live at both `admin.betterroads.org` and `betterroads.rackops.in`; the Cloudflare DNS CNAME and tunnel route are working as of 2026-08-14. |
 | Database | `pg-ha` stack: pg-1 primary + pg-0/pg-2 streaming standbys (re-cloned 2026-08-06 after split-brain); pgpool constrained off `mayank-mainframe-server` (its overlay drops connections — the historic flapping) |
 | AI engine | image `betterroads-ai:latest` built on BetterRoad-VM; nightly `run-all` via `/etc/cron.d/betterroads-ai` (02:30) → logs `/var/log/betterroads-ai.log` |
 | APK/AAB | run `npm run build:apk` with Docker and signing files; signed artifacts land in `mobile/app/release/` (see the mobile README) |

@@ -57,21 +57,21 @@ export const STEPS = [
     index: '01',
     title: 'Sense',
     kicker: 'Your phone',
-    body: 'Install the app and your phone becomes a road sensor. It reads every bump and GPS point in the background as you drive — zero effort, zero detours.',
+    body: 'Start a journey with your phone securely mounted and the app open. BetterRoads records motion and GPS signals while you travel — no special sensor hardware or detour required.',
   },
   {
     id: 'detect',
     index: '02',
     title: 'Detect',
-    kicker: 'Our models',
-    body: 'Trained models turn millions of those signals into verified pothole locations — a living map of the truth, built by everyone at once.',
+    kicker: 'Signal processing',
+    body: 'On-device scoring detects roughness, bumps, pothole-like jolts, and swerves. Repeated journeys let the server separate likely road damage from consistent infrastructure such as speed breakers.',
   },
   {
     id: 'report',
     index: '03',
     title: 'Report',
     kicker: 'The record',
-    body: 'Every pothole becomes a public record, tied to the ward and the people responsible. Undeniable. On the record. Proof becomes pressure.',
+    body: 'Accepted journeys update the public road-quality map. Published contract records can be overlaid so road condition evidence and accountable maintenance data can be examined together.',
   },
 ] as const;
 

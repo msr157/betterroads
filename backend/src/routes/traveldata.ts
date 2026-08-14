@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { eq, sql } from 'drizzle-orm';
@@ -121,6 +122,10 @@ router.post(
     c.set('userId' as never, auth.user.id as never);
     await next();
   },
+  bodyLimit({
+    maxSize: MAX_BODY_BYTES,
+    onError: (c) => c.json({ ok: false, error: 'Payload too large.' }, 413),
+  }),
   zValidator('json', travelDataSchema, (result, c) => {
     if (!result.success) {
       const first = result.error.issues[0];
@@ -129,11 +134,6 @@ router.post(
     }
   }),
   async (c) => {
-    const bodyLength = Number(c.req.header('content-length') ?? 0);
-    if (!bodyLength || bodyLength > MAX_BODY_BYTES) {
-      return c.json({ ok: false, error: 'Payload too large.' }, 413);
-    }
-
     const payload = c.req.valid('json');
     const { device, journey } = payload;
     const userId = c.get('userId' as never) as number;
