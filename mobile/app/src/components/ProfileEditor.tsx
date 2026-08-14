@@ -51,16 +51,16 @@ export function ProfileEditor({
   onCancel,
   onLogout,
 }: Props) {
-  const [username, setUsername] = useState(user.username);
-  const [name, setName] = useState(user.name);
-  const [dateOfBirth, setDateOfBirth] = useState(user.dateOfBirth ?? '');
-  const [gender, setGender] = useState(user.gender ?? '');
+  const [username, setUsername] = useState(user?.username || '');
+  const [name, setName] = useState(user?.name || '');
+  const [dateOfBirth, setDateOfBirth] = useState(user?.dateOfBirth ?? '');
+  const [gender, setGender] = useState(user?.gender ?? '');
   const [publicLeaderboard, setPublicLeaderboard] = useState(
-    user.publicLeaderboard,
+    user?.publicLeaderboard ?? false,
   );
 
   // State & City selection
-  const initialParts = (user.city || '').split(', ');
+  const initialParts = (user?.city || '').split(', ');
   const [selectedStateCode, setSelectedStateCode] = useState<string | null>(
     initialParts[1] || null,
   );
@@ -184,6 +184,8 @@ export function ProfileEditor({
     );
   };
 
+  const initial = (name || user?.name || 'C').trim().charAt(0).toUpperCase() || 'C';
+
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar style="light" />
@@ -191,260 +193,260 @@ export function ProfileEditor({
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Top Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTitleRow}>
-            <View>
-              <Text style={typography.eyebrow}>CONTRIBUTOR SETTINGS</Text>
-              <Text style={styles.headerTitle}>Your Profile</Text>
-            </View>
-            <Pressable onPress={onCancel} hitSlop={12} style={styles.cancelPill}>
-              <Text style={styles.cancelPillText}>Close</Text>
-            </Pressable>
-          </View>
-          <FlagRule width={48} height={2} />
-        </View>
-
-        {/* Contributor Card */}
-        <View style={styles.contributorCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {name.trim().charAt(0).toUpperCase() || 'C'}
-            </Text>
-          </View>
-          <View style={styles.contributorInfo}>
-            <Text style={styles.contributorName}>{name || 'Contributor'}</Text>
-            <Text style={styles.contributorUsername}>@{username}</Text>
-            <View style={styles.idBadge}>
-              <Text style={styles.idBadgeLabel}>ID:</Text>
-              <Text style={styles.idBadgeValue}>{user.publicId}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Account Details Card */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeader}>Account Credentials</Text>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Username *</Text>
-            <TextInput
-              style={styles.input}
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder="e.g. rahul_m"
-              placeholderTextColor={theme.ink3}
-            />
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Display Name *</Text>
-            <TextInput
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. Rahul Sharma"
-              placeholderTextColor={theme.ink3}
-            />
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Google Account</Text>
-            <View style={[styles.input, styles.inputDisabled]}>
-              <Text style={styles.disabledInputText}>
-                {user.email ?? 'Not linked'}
-              </Text>
-            </View>
-          </View>
-
-          {GOOGLE_AUTH_ENABLED && !user.googleLinked && (
-            <Pressable
-              style={styles.linkGoogleButton}
-              disabled={saving}
-              onPress={handleLinkGoogle}
-            >
-              <Text style={styles.linkGoogleButtonText}>
-                Link Google Account (Test)
-              </Text>
-            </Pressable>
-          )}
-        </View>
-
-        {/* Demographics Card */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeader}>Personal Information</Text>
-
-          {/* Date of Birth */}
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Date of Birth (Must be 12+)</Text>
-            <Pressable onPress={() => setShowDatePicker(true)}>
-              <View style={styles.selectTrigger}>
-                <Text
-                  style={[
-                    styles.selectTriggerText,
-                    !dateOfBirth && styles.placeholderText,
-                  ]}
-                >
-                  {dateOfBirth || 'Select Date of Birth'}
-                </Text>
-                <Text style={styles.selectArrow}>📅</Text>
+        <View style={styles.mainWrapper}>
+          {/* Top Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTitleRow}>
+              <View>
+                <Text style={typography.eyebrow}>CONTRIBUTOR SETTINGS</Text>
+                <Text style={styles.headerTitle}>Your Profile</Text>
               </View>
-            </Pressable>
-            {showDatePicker && (
-              <DateTimePicker
-                value={dateOfBirth ? new Date(dateOfBirth) : maxDate}
-                mode="date"
-                display="default"
-                maximumDate={maxDate}
-                onChange={onDateChange}
+              <Pressable onPress={onCancel} hitSlop={12} style={styles.cancelPill}>
+                <Text style={styles.cancelPillText}>Close</Text>
+              </Pressable>
+            </View>
+            <FlagRule width={48} height={2} />
+          </View>
+
+          {/* Contributor Card */}
+          <View style={styles.contributorCard}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initial}</Text>
+            </View>
+            <View style={styles.contributorInfo}>
+              <Text style={styles.contributorName}>{name || 'Contributor'}</Text>
+              <Text style={styles.contributorUsername}>@{username}</Text>
+              <View style={styles.idBadge}>
+                <Text style={styles.idBadgeLabel}>ID:</Text>
+                <Text style={styles.idBadgeValue}>{user?.publicId || 'BR-CONTRIB'}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Account Details Card */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionHeader}>Account Credentials</Text>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Username *</Text>
+              <TextInput
+                style={styles.input}
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder="e.g. rahul_m"
+                placeholderTextColor={theme.ink3}
               />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Display Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g. Rahul Sharma"
+                placeholderTextColor={theme.ink3}
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Google Account</Text>
+              <View style={[styles.input, styles.inputDisabled]}>
+                <Text style={styles.disabledInputText}>
+                  {user?.email ?? 'Not linked'}
+                </Text>
+              </View>
+            </View>
+
+            {GOOGLE_AUTH_ENABLED && !user?.googleLinked && (
+              <Pressable
+                style={styles.linkGoogleButton}
+                disabled={saving}
+                onPress={handleLinkGoogle}
+              >
+                <Text style={styles.linkGoogleButtonText}>
+                  Link Google Account (Test)
+                </Text>
+              </Pressable>
             )}
           </View>
 
-          {/* Gender — strictly 3 options */}
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Gender (Optional)</Text>
-            <View style={styles.genderRow}>
-              {GENDER_OPTIONS.map((g) => {
-                const isSelected = gender === g.value;
-                return (
-                  <Pressable
-                    key={g.value}
-                    onPress={() => setGender(isSelected ? '' : g.value)}
+          {/* Demographics Card */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionHeader}>Personal Information</Text>
+
+            {/* Date of Birth */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Date of Birth (Must be 12+)</Text>
+              <Pressable onPress={() => setShowDatePicker(true)}>
+                <View style={styles.selectTrigger}>
+                  <Text
                     style={[
-                      styles.genderChip,
-                      isSelected && styles.genderChipSelected,
+                      styles.selectTriggerText,
+                      !dateOfBirth && styles.placeholderText,
                     ]}
                   >
-                    <Text
+                    {dateOfBirth || 'Select Date of Birth'}
+                  </Text>
+                  <Text style={styles.selectArrow}>📅</Text>
+                </View>
+              </Pressable>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={dateOfBirth ? new Date(dateOfBirth) : maxDate}
+                  mode="date"
+                  display="default"
+                  maximumDate={maxDate}
+                  onChange={onDateChange}
+                />
+              )}
+            </View>
+
+            {/* Gender — strictly 3 options */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Gender (Optional)</Text>
+              <View style={styles.genderRow}>
+                {GENDER_OPTIONS.map((g) => {
+                  const isSelected = gender === g.value;
+                  return (
+                    <Pressable
+                      key={g.value}
+                      onPress={() => setGender(isSelected ? '' : g.value)}
                       style={[
-                        styles.genderChipText,
-                        isSelected && styles.genderChipTextSelected,
+                        styles.genderChip,
+                        isSelected && styles.genderChipSelected,
                       ]}
                     >
-                      {g.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.genderChipText,
+                          isSelected && styles.genderChipTextSelected,
+                        ]}
+                      >
+                        {g.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* State Picker */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>State / UT</Text>
+              <Pressable onPress={() => setStatePickerOpen(true)}>
+                <View style={styles.selectTrigger}>
+                  <Text
+                    style={[
+                      styles.selectTriggerText,
+                      !selectedStateName && styles.placeholderText,
+                    ]}
+                  >
+                    {selectedStateName || 'Select State'}
+                  </Text>
+                  <Text style={styles.selectArrow}>▾</Text>
+                </View>
+              </Pressable>
+            </View>
+
+            {/* City Picker */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>City / Town</Text>
+              <Pressable
+                onPress={() => {
+                  if (!selectedStateCode) {
+                    Alert.alert('Select State First', 'Please select your state before choosing a city.');
+                    return;
+                  }
+                  setCityPickerOpen(true);
+                }}
+              >
+                <View
+                  style={[
+                    styles.selectTrigger,
+                    !selectedStateCode && styles.selectTriggerDisabled,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.selectTriggerText,
+                      !selectedCityName && styles.placeholderText,
+                    ]}
+                  >
+                    {selectedCityName ||
+                      (selectedStateCode ? 'Select City' : 'Select state first')}
+                  </Text>
+                  <Text style={styles.selectArrow}>▾</Text>
+                </View>
+              </Pressable>
             </View>
           </View>
 
-          {/* State Picker */}
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>State / UT</Text>
-            <Pressable onPress={() => setStatePickerOpen(true)}>
-              <View style={styles.selectTrigger}>
-                <Text
-                  style={[
-                    styles.selectTriggerText,
-                    !selectedStateName && styles.placeholderText,
-                  ]}
-                >
-                  {selectedStateName || 'Select State'}
-                </Text>
-                <Text style={styles.selectArrow}>▾</Text>
-              </View>
-            </Pressable>
-          </View>
-
-          {/* City Picker */}
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>City / Town</Text>
+          {/* Public Leaderboard Card */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionHeader}>Public Presence</Text>
             <Pressable
-              onPress={() => {
-                if (!selectedStateCode) {
-                  Alert.alert('Select State First', 'Please select your state before choosing a city.');
-                  return;
-                }
-                setCityPickerOpen(true);
-              }}
+              style={styles.consentRow}
+              onPress={() => setPublicLeaderboard((v) => !v)}
             >
               <View
                 style={[
-                  styles.selectTrigger,
-                  !selectedStateCode && styles.selectTriggerDisabled,
+                  styles.checkbox,
+                  publicLeaderboard && styles.checkboxActive,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.selectTriggerText,
-                    !selectedCityName && styles.placeholderText,
-                  ]}
-                >
-                  {selectedCityName ||
-                    (selectedStateCode ? 'Select City' : 'Select state first')}
+                {publicLeaderboard && (
+                  <Text style={styles.checkboxCheck}>✓</Text>
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.consentTitle}>
+                  Show contribution totals on public leaderboard
                 </Text>
-                <Text style={styles.selectArrow}>▾</Text>
+                <Text style={styles.consentDescription}>
+                  If enabled, your display name and kilometers mapped will appear on the public website ranking.
+                </Text>
               </View>
             </Pressable>
           </View>
-        </View>
 
-        {/* Public Leaderboard Card */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeader}>Public Presence</Text>
-          <Pressable
-            style={styles.consentRow}
-            onPress={() => setPublicLeaderboard((v) => !v)}
-          >
-            <View
-              style={[
-                styles.checkbox,
-                publicLeaderboard && styles.checkboxActive,
-              ]}
+          {/* Error message */}
+          {error && <Text style={styles.errorText}>{error}</Text>}
+
+          {/* Action Buttons */}
+          <View style={styles.actionsContainer}>
+            <Pressable
+              style={styles.saveButton}
+              disabled={saving}
+              onPress={handleSave}
             >
-              {publicLeaderboard && (
-                <Text style={styles.checkboxCheck}>✓</Text>
+              {saving ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save Profile</Text>
               )}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.consentTitle}>
-                Show contribution totals on public leaderboard
-              </Text>
-              <Text style={styles.consentDescription}>
-                If enabled, your display name and kilometers mapped will appear on the public website ranking.
-              </Text>
-            </View>
-          </Pressable>
-        </View>
-
-        {/* Error message */}
-        {error && <Text style={styles.errorText}>{error}</Text>}
-
-        {/* Action Buttons */}
-        <View style={styles.actionsContainer}>
-          <Pressable
-            style={styles.saveButton}
-            disabled={saving}
-            onPress={handleSave}
-          >
-            {saving ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.saveButtonText}>Save Profile</Text>
-            )}
-          </Pressable>
-
-          <Pressable
-            style={styles.feedbackButton}
-            onPress={() => setFeedbackOpen(true)}
-          >
-            <Text style={styles.feedbackButtonText}>Send Feedback / Bug Report</Text>
-          </Pressable>
-
-          <View style={styles.footerLinks}>
-            <Pressable onPress={onLogout} style={styles.footerLinkButton}>
-              <Text style={styles.logoutText}>Log Out</Text>
             </Pressable>
 
-            <Text style={styles.footerSeparator}>•</Text>
-
-            <Pressable onPress={confirmDelete} style={styles.footerLinkButton}>
-              <Text style={styles.deleteText}>Delete Account</Text>
+            <Pressable
+              style={styles.feedbackButton}
+              onPress={() => setFeedbackOpen(true)}
+            >
+              <Text style={styles.feedbackButtonText}>Send Feedback / Bug Report</Text>
             </Pressable>
+
+            <View style={styles.footerLinks}>
+              <Pressable onPress={onLogout} style={styles.footerLinkButton}>
+                <Text style={styles.logoutText}>Log Out</Text>
+              </Pressable>
+
+              <Text style={styles.footerSeparator}>•</Text>
+
+              <Pressable onPress={confirmDelete} style={styles.footerLinkButton}>
+                <Text style={styles.deleteText}>Delete Account</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -457,7 +459,7 @@ export function ProfileEditor({
           selectedValue={selectedStateCode}
           onSelect={(code) => {
             setSelectedStateCode(code);
-            setSelectedCityName(null); // reset city when state changes
+            setSelectedCityName(null);
           }}
           onClose={() => setStatePickerOpen(false)}
         />
@@ -486,11 +488,18 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: theme.bg,
+    alignItems: 'center',
   },
   scroll: {
     padding: 20,
     paddingTop: 16,
     paddingBottom: 40,
+    width: '100%',
+    alignItems: 'center',
+  },
+  mainWrapper: {
+    width: '100%',
+    maxWidth: 480,
     gap: 16,
   },
   header: {
