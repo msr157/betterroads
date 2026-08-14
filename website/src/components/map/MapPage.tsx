@@ -163,6 +163,7 @@ export default function MapPage() {
   const [updating, setUpdating] = useState(false);
   const [stats, setStats] = useState<PublicStats | null>(null);
   const [panel, setPanel] = useState<'network' | 'contributors' | 'contracts'>('network');
+  const [panelExpanded, setPanelExpanded] = useState(typeof window !== 'undefined' ? window.innerWidth >= 640 : true);
   const [period, setPeriod] = useState<'monthly' | 'lifetime'>('monthly');
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [contracts, setContracts] = useState<PublicContract[]>([]);
@@ -496,13 +497,35 @@ export default function MapPage() {
           <MapLegend />
         </div>
 
-        <aside className="absolute right-3 top-16 z-10 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-line bg-paper/95 shadow-xl backdrop-blur sm:right-4 sm:top-4">
-          <nav className="flex border-b border-line">{(['network', 'contributors', 'contracts'] as const).map((p) => <button key={p} onClick={() => setPanel(p)} className={`flex-1 px-2 py-3 text-xs font-bold capitalize ${panel === p ? 'bg-saffron text-white' : 'text-ink-2'}`}>{p}</button>)}</nav>
-          <div className="max-h-[42vh] overflow-auto p-4">
-            {panel === 'network' && <><p className="eyebrow">Live public data</p><h2 className="mt-1 font-display text-xl font-bold">India road health</h2><p className="mt-2 text-sm text-ink-2">Click a scored road or event for details. Use the timeline below to inspect historical RQI.</p><div className="mt-4 grid grid-cols-2 gap-2">{statItems.map((s) => <div key={s.label} className="rounded-xl bg-paper-2 p-3"><b className="block font-display text-lg">{s.value}</b><span className="text-xs text-ink-3">{s.label}</span></div>)}</div></>}
-            {panel === 'contributors' && <><div className="flex items-center justify-between"><h2 className="font-display text-xl font-bold">Leaderboard</h2><select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} className="rounded-lg border border-line bg-paper px-2 py-1 text-xs"><option value="monthly">This month</option><option value="lifetime">Lifetime</option></select></div>{contributors.length === 0 ? <p className="mt-4 text-sm text-ink-3">No contributors have opted in yet.</p> : <ol className="mt-3 space-y-2">{contributors.map((c, i) => <li key={c.id} className="flex items-center rounded-xl bg-paper-2 p-3"><b className="mr-3 text-ink-3">#{i + 1}</b><div className="flex-1"><b className="text-sm">{c.name}</b><p className="text-xs text-ink-3">{c.journeyCount} journeys</p></div><b>{c.mappedKm.toLocaleString('en-IN')} km</b></li>)}</ol>}</>}
-            {panel === 'contracts' && <><h2 className="font-display text-xl font-bold">Road accountability</h2><p className="mt-1 text-xs text-ink-3">Only records explicitly published by administrators appear here.</p>{contracts.length === 0 ? <p className="mt-4 text-sm text-ink-3">No published contracts.</p> : <div className="mt-3 space-y-3">{contracts.map((contract) => <article key={contract.id} className="rounded-xl border border-line p-3"><b className="text-sm">{contract.roadName}</b><p className="text-xs text-ink-3">{contract.city}{contract.ward ? ` · Ward ${contract.ward}` : ''}</p><p className="mt-2 text-xs"><b>Contractor:</b> {contract.contractorName}</p><p className="text-xs"><b>Status:</b> {contract.status}</p>{contract.guaranteeUntil && <p className="text-xs"><b>Guarantee:</b> until {formatDay(contract.guaranteeUntil)}</p>}</article>)}</div>}</>}
-          </div>
+        <aside className="absolute right-3 top-16 z-10 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-line bg-paper/95 shadow-xl backdrop-blur sm:right-4 sm:top-4 flex flex-col">
+          <nav className="flex border-b border-line">
+            {(['network', 'contributors', 'contracts'] as const).map((p) => (
+              <button 
+                key={p} 
+                onClick={() => {
+                  if (panel === p) setPanelExpanded(!panelExpanded);
+                  else { setPanel(p); setPanelExpanded(true); }
+                }} 
+                className={`flex-1 px-2 py-3 text-xs font-bold capitalize ${panel === p && panelExpanded ? 'bg-saffron text-white' : 'text-ink-2 hover:bg-paper-2 hover:text-ink'}`}
+              >
+                {p}
+              </button>
+            ))}
+            <button 
+              aria-label={panelExpanded ? "Collapse panel" : "Expand panel"}
+              onClick={() => setPanelExpanded(e => !e)} 
+              className="flex items-center justify-center border-l border-line px-3 text-xs font-bold text-ink-2 hover:bg-paper-2 hover:text-ink"
+            >
+              {panelExpanded ? '▲' : '▼'}
+            </button>
+          </nav>
+          {panelExpanded && (
+            <div className="max-h-[42vh] overflow-auto p-4">
+              {panel === 'network' && <><p className="eyebrow">Live public data</p><h2 className="mt-1 font-display text-xl font-bold">India road health</h2><p className="mt-2 text-sm text-ink-2">Click a scored road or event for details. Use the timeline below to inspect historical RQI.</p><div className="mt-4 grid grid-cols-2 gap-2">{statItems.map((s) => <div key={s.label} className="rounded-xl bg-paper-2 p-3"><b className="block font-display text-lg">{s.value}</b><span className="text-xs text-ink-3">{s.label}</span></div>)}</div></>}
+              {panel === 'contributors' && <><div className="flex items-center justify-between"><h2 className="font-display text-xl font-bold">Leaderboard</h2><select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} className="rounded-lg border border-line bg-paper px-2 py-1 text-xs"><option value="monthly">This month</option><option value="lifetime">Lifetime</option></select></div>{contributors.length === 0 ? <p className="mt-4 text-sm text-ink-3">No contributors have opted in yet.</p> : <ol className="mt-3 space-y-2">{contributors.map((c, i) => <li key={c.id} className="flex items-center rounded-xl bg-paper-2 p-3"><b className="mr-3 text-ink-3">#{i + 1}</b><div className="flex-1"><b className="text-sm">{c.name}</b><p className="text-xs text-ink-3">{c.journeyCount} journeys</p></div><b>{c.mappedKm.toLocaleString('en-IN')} km</b></li>)}</ol>}</>}
+              {panel === 'contracts' && <><h2 className="font-display text-xl font-bold">Road accountability</h2><p className="mt-1 text-xs text-ink-3">Only records explicitly published by administrators appear here.</p>{contracts.length === 0 ? <p className="mt-4 text-sm text-ink-3">No published contracts.</p> : <div className="mt-3 space-y-3">{contracts.map((contract) => <article key={contract.id} className="rounded-xl border border-line p-3"><b className="text-sm">{contract.roadName}</b><p className="text-xs text-ink-3">{contract.city}{contract.ward ? ` · Ward ${contract.ward}` : ''}</p><p className="mt-2 text-xs"><b>Contractor:</b> {contract.contractorName}</p><p className="text-xs"><b>Status:</b> {contract.status}</p>{contract.guaranteeUntil && <p className="text-xs"><b>Guarantee:</b> until {formatDay(contract.guaranteeUntil)}</p>}</article>)}</div>}</>}
+            </div>
+          )}
         </aside>
 
         {/* Refetch keeps the frame — just a quiet chip while data reloads */}
