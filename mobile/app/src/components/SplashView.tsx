@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Platform,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -23,13 +24,13 @@ export function SplashView({ statusText = 'Initializing...' }: Props) {
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 450,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.spring(scaleAnim, {
         toValue: 1,
         friction: 8,
         tension: 40,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
     ]).start();
   }, [fadeAnim, scaleAnim]);
