@@ -2,7 +2,7 @@
   "expo": {
     "name": "BetterRoads",
     "slug": "betterroads",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "betterroads",
     "userInterfaceStyle": "dark",
@@ -43,7 +43,8 @@
           "imageWidth": 220,
           "backgroundColor": "#0a0a0a"
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin"
     ]
   }
 }

@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import * as AuthSession from 'expo-auth-session';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { JourneyRecorder } from '@/journeyRecorder';
 import type { EngineSnapshot } from '@/sensorEngine';
 import { flushQueue, pendingCount, uploadOrQueue } from '@/upload';
@@ -12,7 +10,10 @@ import type { VehicleType } from '@/types';
 import { theme } from '@/theme';
 import { deleteAccount, exchangeGoogleToken, logout, restoreUser, updateProfile, type UserProfile } from '@/auth';
 
-WebBrowser.maybeCompleteAuthSession();
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+});
+
 type Phase = 'idle' | 'recording' | 'uploading';
 
 export default function App() {
@@ -26,21 +27,29 @@ export default function App() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const recorderRef = useRef<JourneyRecorder | null>(null);
-  const [, googleResponse, promptGoogle] = Google.useIdTokenAuthRequest({
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    redirectUri: AuthSession.makeRedirectUri({ scheme: 'betterroads', path: 'oauth' }),
-  });
 
   useEffect(() => { void (async () => { const restored = await restoreUser(); setUser(restored); if (restored) await flushQueue(); setPending(await pendingCount()); setBooting(false); })(); }, []);
-  useEffect(() => {
-    if (googleResponse?.type !== 'success') return;
-    const idToken = googleResponse.authentication?.idToken ?? googleResponse.params.id_token;
-    if (!idToken) { setAuthError('Google did not return an ID token.'); return; }
-    setBooting(true);
-    exchangeGoogleToken(idToken).then((profile) => { setUser(profile); setAuthError(null); return flushQueue(); }).catch((e) => setAuthError(e instanceof Error ? e.message : 'Sign-in failed.')).finally(() => setBooting(false));
-  }, [googleResponse]);
   useEffect(() => { if (phase !== 'recording') return; const id = setInterval(() => { const s = recorderRef.current?.snapshot(); if (s) setSnap({ ...s }); }, 1000); return () => clearInterval(id); }, [phase]);
+
+  const handleGoogleLogin = useCallback(async () => {
+    try {
+      setAuthError(null);
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if (response.type === 'success') {
+        const idToken = response.data.idToken;
+        if (!idToken) throw new Error('Google did not return an ID token.');
+        setBooting(true);
+        const profile = await exchangeGoogleToken(idToken);
+        setUser(profile);
+        await flushQueue();
+      }
+    } catch (e: any) {
+      if (e.code !== 'SIGN_IN_CANCELLED') setAuthError(e.message || 'Sign-in failed.');
+    } finally {
+      setBooting(false);
+    }
+  }, []);
 
   const startJourney = useCallback(async () => {
     setMessage(null);
@@ -58,7 +67,7 @@ export default function App() {
   }, []);
 
   if (booting) return <SafeAreaView style={[styles.root, styles.center]}><ActivityIndicator color={theme.saffronDeep} /></SafeAreaView>;
-  if (!user) return <SafeAreaView style={styles.root}><StatusBar style="light" /><View style={[styles.scroll, styles.center]}><Text style={styles.wordmark}>BetterRoads<Text style={styles.accent}>.</Text></Text><Text style={styles.tagline}>Sign in to record and attribute your road contributions.</Text><Pressable style={styles.mainButton} onPress={() => void promptGoogle()}><Text style={styles.mainButtonText}>Continue with Google</Text></Pressable>{authError && <Text style={styles.warning}>{authError}</Text>}<Text style={styles.footnote}>Your Google email identifies your account and is never shown on the public leaderboard.</Text></View></SafeAreaView>;
+  if (!user) return <SafeAreaView style={styles.root}><StatusBar style="light" /><View style={[styles.scroll, styles.center]}><Text style={styles.wordmark}>BetterRoads<Text style={styles.accent}>.</Text></Text><Text style={styles.tagline}>Sign in to record and attribute your road contributions.</Text><Pressable style={styles.mainButton} onPress={() => void handleGoogleLogin()}><Text style={styles.mainButtonText}>Continue with Google</Text></Pressable>{authError && <Text style={styles.warning}>{authError}</Text>}<Text style={styles.footnote}>Your Google email identifies your account and is never shown on the public leaderboard.</Text></View></SafeAreaView>;
   if (editingProfile) return <ProfileEditor user={user} onSaved={(next) => { setUser(next); setEditingProfile(false); }} onDeleted={() => setUser(null)} onCancel={() => setEditingProfile(false)} />;
   const recording = phase === 'recording';
 
