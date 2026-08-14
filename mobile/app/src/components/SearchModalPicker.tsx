@@ -5,11 +5,13 @@ import {
   Platform,
   Pressable,
   SafeAreaView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 
 export type PickerItem = {
@@ -77,13 +79,18 @@ export function SearchModalPicker({
                 hitSlop={12}
                 style={styles.closeButton}
               >
-                <Text style={styles.closeButtonText}>✕</Text>
+                <Ionicons name="close" size={18} color={theme.ink2} />
               </Pressable>
             </View>
 
             {/* Search Input */}
             <View style={styles.searchRow}>
-              <Text style={styles.searchIcon}>🔍</Text>
+              <Ionicons
+                name="search-outline"
+                size={18}
+                color={theme.ink3}
+                style={{ marginRight: 8 }}
+              />
               <TextInput
                 style={styles.searchInput}
                 placeholder={searchPlaceholder}
@@ -100,7 +107,11 @@ export function SearchModalPicker({
                   hitSlop={8}
                   style={styles.clearQueryButton}
                 >
-                  <Text style={styles.clearQueryText}>✕</Text>
+                  <Ionicons
+                    name="close-circle"
+                    size={16}
+                    color={theme.ink3}
+                  />
                 </Pressable>
               )}
             </View>
@@ -129,7 +140,7 @@ export function SearchModalPicker({
                   </Text>
                   {isSelected && (
                     <View style={styles.checkBadge}>
-                      <Text style={styles.checkBadgeText}>✓</Text>
+                      <Ionicons name="checkmark" size={14} color="#ffffff" />
                     </View>
                   )}
                 </Pressable>
@@ -137,7 +148,9 @@ export function SearchModalPicker({
             }}
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No results found for "{query}"</Text>
+                <Text style={styles.emptyText}>
+                  No results found for "{query}"
+                </Text>
               </View>
             }
           />
@@ -150,13 +163,13 @@ export function SearchModalPicker({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.82)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
     flex: 1,
     backgroundColor: theme.bg2,
-    marginTop: 48,
+    marginTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) + 24 : 48,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 1,
@@ -165,9 +178,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: theme.line,
     backgroundColor: theme.bg,
@@ -176,7 +189,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   headerTitle: {
     fontSize: 18,
@@ -195,11 +208,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeButtonText: {
-    color: theme.ink2,
-    fontSize: 14,
-    fontWeight: '700',
-  },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -210,11 +218,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 10 : 4,
   },
-  searchIcon: {
-    fontSize: 14,
-    marginRight: 8,
-    opacity: 0.6,
-  },
   searchInput: {
     flex: 1,
     fontSize: 15,
@@ -224,11 +227,6 @@ const styles = StyleSheet.create({
   clearQueryButton: {
     padding: 4,
   },
-  clearQueryText: {
-    color: theme.ink3,
-    fontSize: 13,
-    fontWeight: '700',
-  },
   listContent: {
     paddingVertical: 8,
   },
@@ -236,7 +234,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: theme.line,
@@ -262,11 +260,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 12,
-  },
-  checkBadgeText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '800',
   },
   emptyState: {
     padding: 40,

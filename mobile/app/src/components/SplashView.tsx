@@ -4,6 +4,7 @@ import {
   Animated,
   Platform,
   SafeAreaView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -17,13 +18,13 @@ type Props = {
 
 export function SplashView({ statusText = 'Initializing...' }: Props) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.94)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 450,
+        duration: 400,
         useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.spring(scaleAnim, {
@@ -46,8 +47,8 @@ export function SplashView({ statusText = 'Initializing...' }: Props) {
           },
         ]}
       >
-        {/* Hindi Eyebrow */}
-        <Text style={typography.hindiEyebrow}>गड्डों से आज़ादी</Text>
+        {/* Eyebrow */}
+        <Text style={typography.eyebrow}>CITIZEN ROAD INTELLIGENCE</Text>
 
         {/* Brand Wordmark with Saffron Dot */}
         <View style={styles.brandRow}>
@@ -57,7 +58,7 @@ export function SplashView({ statusText = 'Initializing...' }: Props) {
 
         {/* Flag Rule */}
         <View style={styles.flagRuleWrapper}>
-          <FlagRule width={48} height={2.5} />
+          <FlagRule width={56} height={2.5} />
         </View>
 
         {/* Tagline */}
@@ -79,10 +80,12 @@ const styles = StyleSheet.create({
     backgroundColor: theme.bg,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   container: {
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
+    width: '100%',
     gap: 12,
   },
   brandRow: {
@@ -90,13 +93,13 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   wordmark: {
-    fontSize: 42,
+    fontSize: 40,
     fontWeight: '900',
-    letterSpacing: -1.5,
+    letterSpacing: -1.2,
     color: theme.ink,
   },
   accentDot: {
-    fontSize: 42,
+    fontSize: 40,
     fontWeight: '900',
     color: theme.saffron,
   },
@@ -111,7 +114,7 @@ const styles = StyleSheet.create({
     maxWidth: 280,
   },
   loaderContainer: {
-    marginTop: 48,
+    marginTop: 40,
     alignItems: 'center',
     gap: 10,
   },

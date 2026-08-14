@@ -48,12 +48,6 @@ export const typography = {
     textTransform: 'uppercase' as const,
     color: theme.ink2,
   },
-  hindiEyebrow: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: theme.saffron,
-    letterSpacing: 0.5,
-  },
   wordmark: {
     fontSize: 28,
     fontWeight: '900' as const,

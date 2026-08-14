@@ -6,11 +6,12 @@ import {
   Pressable,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { radii, theme, typography } from '@/theme';
 import { FlagRule } from '@/components/FlagRule';
 import { VEHICLES } from '@/vehicles';
@@ -18,13 +19,16 @@ import type { VehicleType } from '@/types';
 import type { EngineSnapshot } from '@/sensorEngine';
 import type { UserProfile } from '@/auth';
 
-const VEHICLE_ICONS: Record<VehicleType, string> = {
-  CAR: '🚗',
-  BIKE: '🏍️',
-  AUTO_RICKSHAW: '🛺',
-  BUS: '🚌',
-  TRUCK: '🚚',
-  OTHER: '🚙',
+const VEHICLE_ICONS: Record<
+  VehicleType,
+  keyof typeof MaterialCommunityIcons.glyphMap
+> = {
+  CAR: 'car-side',
+  BIKE: 'motorbike',
+  AUTO_RICKSHAW: 'rickshaw',
+  BUS: 'bus-side',
+  TRUCK: 'truck-outline',
+  OTHER: 'car-multiple',
 };
 
 type Props = {
@@ -91,232 +95,260 @@ export function JourneyDashboard({
 
   return (
     <SafeAreaView style={styles.root}>
-      <StatusBar style="light" />
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.mainWrapper}>
-          {/* Top App Bar */}
-          <View style={styles.topBar}>
-            <View>
-              <View style={styles.brandRow}>
-                <Text style={styles.wordmark}>betterroads</Text>
-                <Text style={styles.accentDot}>.</Text>
-              </View>
-              <Text style={styles.topEyebrow}>A CITIZEN MOVEMENT FOR INDIA'S ROADS</Text>
+        {/* Top App Bar with Status Bar Clearance */}
+        <View style={styles.topBar}>
+          <View style={{ flex: 1 }}>
+            <View style={styles.brandRow}>
+              <Text style={styles.wordmark}>betterroads</Text>
+              <Text style={styles.accentDot}>.</Text>
             </View>
-
-            {/* Profile Pill */}
-            <Pressable
-              disabled={recording}
-              onPress={onOpenProfile}
-              style={[styles.profilePill, recording && { opacity: 0.5 }]}
-            >
-              <View style={styles.profileAvatar}>
-                <Text style={styles.profileAvatarText}>{initial}</Text>
-              </View>
-              <View style={styles.profileMeta}>
-                <Text style={styles.profileName} numberOfLines={1}>
-                  {displayName}
-                </Text>
-                <Text style={styles.profileAction}>Profile ⚙</Text>
-              </View>
-            </Pressable>
-          </View>
-
-          {/* Flag Rule */}
-          <View style={styles.flagContainer}>
-            <FlagRule width="100%" height={2} />
-          </View>
-
-          {/* Hero Section */}
-          <View style={styles.heroSection}>
-            <Text style={typography.hindiEyebrow}>गड्डों से आज़ादी</Text>
-            <Text style={styles.heroHeadline}>
-              Every ride scores the{' '}
-              <Text style={{ color: theme.saffronDeep }}>Road.</Text>
+            <Text style={styles.topEyebrow}>
+              CITIZEN MOVEMENT FOR INDIA'S ROADS
             </Text>
           </View>
 
-          {/* Live HUD (when recording) */}
-          {recording ? (
-            <View style={styles.hudCard}>
-              {/* Live Status Header */}
-              <View style={styles.hudHeader}>
-                <View style={styles.recordingBadge}>
-                  <Animated.View
-                    style={[styles.recordingDot, { opacity: pulseAnim }]}
-                  />
-                  <Text style={styles.recordingText}>RECORDING LIVE</Text>
-                </View>
-                <Text style={styles.vehicleActiveTag}>
-                  {VEHICLE_ICONS[vehicle]} {vehicle}
-                </Text>
-              </View>
-
-              {/* Metrics Grid */}
-              <View style={styles.metricsGrid}>
-                <View style={styles.metricCard}>
-                  <Text style={styles.metricLabel}>DISTANCE</Text>
-                  <Text style={styles.metricValue}>
-                    {((snapshot?.distanceM ?? 0) / 1000).toFixed(2)}
-                    <Text style={styles.metricUnit}> km</Text>
-                  </Text>
-                </View>
-
-                <View style={styles.metricCard}>
-                  <Text style={styles.metricLabel}>LIVE RQI</Text>
-                  <Text style={[styles.metricValue, { color: rqiColor }]}>
-                    {liveRqi}
-                    <Text style={styles.metricUnit}> / 100</Text>
-                  </Text>
-                </View>
-
-                <View style={styles.metricCard}>
-                  <Text style={styles.metricLabel}>EVENTS LOGGED</Text>
-                  <Text style={styles.metricValue}>
-                    {snapshot?.eventCount ?? 0}
-                  </Text>
-                </View>
-
-                <View style={styles.metricCard}>
-                  <Text style={styles.metricLabel}>SEGMENTS</Text>
-                  <Text style={styles.metricValue}>
-                    {snapshot?.segmentCount ?? 0}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Mount Stability Alert */}
-              {snapshot && !snapshot.isStableMount && (
-                <View style={styles.warningBox}>
-                  <Text style={styles.warningIcon}>⚠️</Text>
-                  <Text style={styles.warningText}>
-                    Phone looks unmounted — fix it firmly to a dashboard or holder so readings remain accurate.
-                  </Text>
-                </View>
-              )}
+          {/* Profile Pill */}
+          <Pressable
+            disabled={recording}
+            onPress={onOpenProfile}
+            style={[styles.profilePill, recording && { opacity: 0.5 }]}
+          >
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarText}>{initial}</Text>
             </View>
-          ) : (
-            /* Vehicle Selection Card */
-            <View style={styles.vehicleSection}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Select Your Vehicle</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Calibrates sensor vibration floor
+            <View style={styles.profileMeta}>
+              <Text style={styles.profileName} numberOfLines={1}>
+                {displayName}
+              </Text>
+              <View style={styles.profileActionRow}>
+                <Text style={styles.profileAction}>Profile</Text>
+                <Ionicons
+                  name="settings-outline"
+                  size={11}
+                  color={theme.ink3}
+                />
+              </View>
+            </View>
+          </Pressable>
+        </View>
+
+        {/* Flag Rule */}
+        <View style={styles.flagContainer}>
+          <FlagRule width="100%" height={2} />
+        </View>
+
+        {/* Hero Section */}
+        <View style={styles.heroSection}>
+          <Text style={typography.eyebrow}>ROAD QUALITY SENSING</Text>
+          <Text style={styles.heroHeadline}>
+            Every ride scores the{' '}
+            <Text style={{ color: theme.saffronDeep }}>Road.</Text>
+          </Text>
+        </View>
+
+        {/* Live HUD (when recording) */}
+        {recording ? (
+          <View style={styles.hudCard}>
+            {/* Live Status Header */}
+            <View style={styles.hudHeader}>
+              <View style={styles.recordingBadge}>
+                <Animated.View
+                  style={[styles.recordingDot, { opacity: pulseAnim }]}
+                />
+                <Text style={styles.recordingText}>RECORDING LIVE</Text>
+              </View>
+              <View style={styles.vehicleTagRow}>
+                <MaterialCommunityIcons
+                  name={VEHICLE_ICONS[vehicle]}
+                  size={16}
+                  color={theme.ink2}
+                />
+                <Text style={styles.vehicleActiveTag}>{vehicle}</Text>
+              </View>
+            </View>
+
+            {/* Metrics Grid */}
+            <View style={styles.metricsGrid}>
+              <View style={styles.metricCard}>
+                <Text style={styles.metricLabel}>DISTANCE</Text>
+                <Text style={styles.metricValue}>
+                  {((snapshot?.distanceM ?? 0) / 1000).toFixed(2)}
+                  <Text style={styles.metricUnit}> km</Text>
                 </Text>
               </View>
 
-              <View style={styles.vehicleGrid}>
-                {VEHICLES.map((v) => {
-                  const isSelected = vehicle === v.type;
-                  return (
-                    <Pressable
-                      key={v.type}
-                      disabled={recording}
-                      onPress={() => onSelectVehicle(v.type)}
+              <View style={styles.metricCard}>
+                <Text style={styles.metricLabel}>LIVE RQI</Text>
+                <Text style={[styles.metricValue, { color: rqiColor }]}>
+                  {liveRqi}
+                  <Text style={styles.metricUnit}> / 100</Text>
+                </Text>
+              </View>
+
+              <View style={styles.metricCard}>
+                <Text style={styles.metricLabel}>EVENTS LOGGED</Text>
+                <Text style={styles.metricValue}>
+                  {snapshot?.eventCount ?? 0}
+                </Text>
+              </View>
+
+              <View style={styles.metricCard}>
+                <Text style={styles.metricLabel}>SEGMENTS</Text>
+                <Text style={styles.metricValue}>
+                  {snapshot?.segmentCount ?? 0}
+                </Text>
+              </View>
+            </View>
+
+            {/* Mount Stability Alert */}
+            {snapshot && !snapshot.isStableMount && (
+              <View style={styles.warningBox}>
+                <Ionicons name="warning-outline" size={18} color={theme.warn} />
+                <Text style={styles.warningText}>
+                  Phone looks unmounted — fix it firmly to a dashboard or holder
+                  so readings remain accurate.
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          /* Vehicle Selection Card */
+          <View style={styles.vehicleSection}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Select Your Vehicle</Text>
+              <Text style={styles.sectionSubtitle}>
+                Calibrates sensor vibration floor
+              </Text>
+            </View>
+
+            <View style={styles.vehicleGrid}>
+              {VEHICLES.map((v) => {
+                const isSelected = vehicle === v.type;
+                const iconName = VEHICLE_ICONS[v.type];
+                return (
+                  <Pressable
+                    key={v.type}
+                    disabled={recording}
+                    onPress={() => onSelectVehicle(v.type)}
+                    style={[
+                      styles.vehicleCard,
+                      isSelected && styles.vehicleCardActive,
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={iconName}
+                      size={26}
+                      color={isSelected ? theme.saffronLift : theme.ink2}
+                    />
+                    <Text
                       style={[
-                        styles.vehicleCard,
-                        isSelected && styles.vehicleCardActive,
+                        styles.vehicleLabel,
+                        isSelected && styles.vehicleLabelActive,
                       ]}
                     >
-                      <Text style={styles.vehicleIcon}>
-                        {VEHICLE_ICONS[v.type] || '🚗'}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.vehicleLabel,
-                          isSelected && styles.vehicleLabelActive,
-                        ]}
-                      >
-                        {v.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+                      {v.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Primary Start / Stop CTA */}
+        <View style={styles.ctaSection}>
+          <Pressable
+            onPress={recording ? onStopJourney : onStartJourney}
+            disabled={uploading}
+            style={[
+              styles.mainCtaButton,
+              recording && styles.stopCtaButton,
+              uploading && { opacity: 0.7 },
+            ]}
+          >
+            {uploading ? (
+              <View style={styles.buttonLoaderRow}>
+                <ActivityIndicator color="#ffffff" />
+                <Text style={styles.mainCtaText}>Processing upload...</Text>
               </View>
+            ) : (
+              <Text style={styles.mainCtaText}>
+                {recording ? 'End Journey & Save' : 'Start Journey'}
+              </Text>
+            )}
+          </Pressable>
+
+          {/* Upload Status / Message */}
+          {message && (
+            <View style={styles.messageBox}>
+              <Text style={styles.messageText}>{message}</Text>
             </View>
           )}
 
-          {/* Primary Start / Stop CTA */}
-          <View style={styles.ctaSection}>
-            <Pressable
-              onPress={recording ? onStopJourney : onStartJourney}
-              disabled={uploading}
-              style={[
-                styles.mainCtaButton,
-                recording && styles.stopCtaButton,
-                uploading && { opacity: 0.7 },
-              ]}
-            >
-              {uploading ? (
-                <View style={styles.buttonLoaderRow}>
-                  <ActivityIndicator color="#ffffff" />
-                  <Text style={styles.mainCtaText}>Processing upload...</Text>
-                </View>
-              ) : (
-                <Text style={styles.mainCtaText}>
-                  {recording ? 'End Journey & Save' : 'Start Journey'}
-                </Text>
-              )}
-            </Pressable>
-
-            {/* Upload Status / Message */}
-            {message && (
-              <View style={styles.messageBox}>
-                <Text style={styles.messageText}>{message}</Text>
-              </View>
-            )}
-
-            {/* Pending uploads banner */}
-            {pendingCount > 0 && (
-              <View style={styles.pendingBadge}>
-                <Text style={styles.pendingText}>
-                  🔄 {pendingCount} journey{pendingCount === 1 ? '' : 's'} queued for upload
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Info & Instructions Card */}
-          {!recording && (
-            <View style={styles.instructionsCard}>
-              <Text style={styles.instructionsTitle}>How to Record</Text>
-              <View style={styles.instructionStep}>
-                <Text style={styles.stepNum}>1</Text>
-                <Text style={styles.stepText}>
-                  Mount your phone firmly on a car dashboard or handlebar holder.
-                </Text>
-              </View>
-              <View style={styles.instructionStep}>
-                <Text style={styles.stepNum}>2</Text>
-                <Text style={styles.stepText}>
-                  Tap Start Journey and keep the app open while commuting.
-                </Text>
-              </View>
-              <View style={styles.instructionStep}>
-                <Text style={styles.stepNum}>3</Text>
-                <Text style={styles.stepText}>
-                  Tap End Journey when you arrive. Your trip is scored and uploaded automatically.
-                </Text>
-              </View>
+          {/* Pending uploads banner */}
+          {pendingCount > 0 && (
+            <View style={styles.pendingBadge}>
+              <Ionicons
+                name="cloud-upload-outline"
+                size={14}
+                color={theme.ink2}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.pendingText}>
+                {pendingCount} journey{pendingCount === 1 ? '' : 's'} queued for
+                upload
+              </Text>
             </View>
           )}
+        </View>
 
-          {/* Footer info & feedback */}
-          <View style={styles.footerSection}>
-            <Pressable
-              style={styles.feedbackLink}
-              onPress={onOpenFeedback}
-            >
-              <Text style={styles.feedbackLinkText}>💬 Send App Feedback</Text>
-            </Pressable>
-
-            <Text style={styles.footerFootnote}>
-              Recording runs while the app is active in the foreground. Road quality data is published anonymously to the BetterRoads public map.
-            </Text>
+        {/* Info & Instructions Card */}
+        {!recording && (
+          <View style={styles.instructionsCard}>
+            <Text style={styles.instructionsTitle}>How to Record</Text>
+            <View style={styles.instructionStep}>
+              <Text style={styles.stepNum}>1</Text>
+              <Text style={styles.stepText}>
+                Mount your phone firmly on a car dashboard or handlebar holder.
+              </Text>
+            </View>
+            <View style={styles.instructionStep}>
+              <Text style={styles.stepNum}>2</Text>
+              <Text style={styles.stepText}>
+                Tap Start Journey and keep the app open while commuting.
+              </Text>
+            </View>
+            <View style={styles.instructionStep}>
+              <Text style={styles.stepNum}>3</Text>
+              <Text style={styles.stepText}>
+                Tap End Journey when you arrive. Your trip is scored and
+                uploaded automatically.
+              </Text>
+            </View>
           </View>
+        )}
+
+        {/* Footer info & feedback */}
+        <View style={styles.footerSection}>
+          <Pressable style={styles.feedbackLink} onPress={onOpenFeedback}>
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={15}
+              color={theme.saffronLift}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.feedbackLinkText}>Send App Feedback</Text>
+          </Pressable>
+
+          <Text style={styles.footerFootnote}>
+            Recording runs while the app is active in the foreground. Road
+            quality data is published anonymously to the BetterRoads public map.
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -327,24 +359,23 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: theme.bg,
-    alignItems: 'center',
   },
-  scroll: {
-    padding: 20,
-    paddingTop: 12,
+  scrollContainer: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) + 12 : 12,
     paddingBottom: 36,
+    gap: 14,
     width: '100%',
-    alignItems: 'center',
-  },
-  mainWrapper: {
-    width: '100%',
-    maxWidth: 480,
-    gap: 16,
   },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    width: '100%',
   },
   brandRow: {
     flexDirection: 'row',
@@ -379,6 +410,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 10,
     gap: 8,
+    maxWidth: 160,
   },
   profileAvatar: {
     width: 28,
@@ -396,12 +428,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   profileMeta: {
-    maxWidth: 90,
+    flexShrink: 1,
   },
   profileName: {
     color: theme.ink,
     fontSize: 12,
     fontWeight: '700',
+  },
+  profileActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   },
   profileAction: {
     color: theme.ink3,
@@ -410,10 +447,12 @@ const styles = StyleSheet.create({
   },
   flagContainer: {
     marginVertical: 2,
+    width: '100%',
   },
   heroSection: {
     gap: 4,
-    marginVertical: 4,
+    marginVertical: 2,
+    width: '100%',
   },
   heroHeadline: {
     fontSize: 26,
@@ -423,11 +462,12 @@ const styles = StyleSheet.create({
     lineHeight: 32,
   },
   hudCard: {
+    width: '100%',
     backgroundColor: theme.bg2,
     borderWidth: 1.5,
     borderColor: theme.lineStrong,
     borderRadius: radii.xl,
-    padding: 18,
+    padding: 16,
     gap: 14,
   },
   hudHeader: {
@@ -436,7 +476,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderBottomWidth: 1,
     borderBottomColor: theme.line,
-    paddingBottom: 12,
+    paddingBottom: 10,
   },
   recordingBadge: {
     flexDirection: 'row',
@@ -455,6 +495,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     color: theme.danger,
   },
+  vehicleTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   vehicleActiveTag: {
     fontSize: 12,
     fontWeight: '700',
@@ -464,6 +509,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+    width: '100%',
   },
   metricCard: {
     flex: 1,
@@ -502,9 +548,6 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 8,
   },
-  warningIcon: {
-    fontSize: 16,
-  },
   warningText: {
     flex: 1,
     fontSize: 12,
@@ -513,18 +556,19 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   vehicleSection: {
+    width: '100%',
     backgroundColor: theme.bg2,
     borderWidth: 1,
     borderColor: theme.line,
     borderRadius: radii.xl,
-    padding: 18,
+    padding: 16,
     gap: 12,
   },
   sectionHeaderRow: {
     gap: 2,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     letterSpacing: 1,
     textTransform: 'uppercase',
@@ -538,25 +582,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    width: '100%',
   },
   vehicleCard: {
     flex: 1,
-    minWidth: '30%',
+    minWidth: '29%',
     backgroundColor: theme.bg3,
     borderWidth: 1,
     borderColor: theme.line,
     borderRadius: radii.md,
     paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     alignItems: 'center',
     gap: 6,
   },
   vehicleCardActive: {
     borderColor: theme.saffronDeep,
     backgroundColor: theme.saffronTint,
-  },
-  vehicleIcon: {
-    fontSize: 24,
   },
   vehicleLabel: {
     fontSize: 11,
@@ -571,8 +613,10 @@ const styles = StyleSheet.create({
   ctaSection: {
     gap: 10,
     marginTop: 4,
+    width: '100%',
   },
   mainCtaButton: {
+    width: '100%',
     backgroundColor: theme.saffronDeep,
     borderRadius: radii.full,
     paddingVertical: 17,
@@ -600,6 +644,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   messageBox: {
+    width: '100%',
     backgroundColor: theme.bg2,
     borderWidth: 1,
     borderColor: theme.line,
@@ -613,6 +658,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   pendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.bg3,
     borderWidth: 1,
     borderColor: theme.lineStrong,
@@ -627,6 +674,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   instructionsCard: {
+    width: '100%',
     backgroundColor: theme.bg2,
     borderWidth: 1,
     borderColor: theme.line,
@@ -668,10 +716,13 @@ const styles = StyleSheet.create({
   },
   footerSection: {
     alignItems: 'center',
-    gap: 12,
-    marginTop: 8,
+    gap: 10,
+    marginTop: 6,
+    width: '100%',
   },
   feedbackLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 6,
     paddingHorizontal: 12,
   },

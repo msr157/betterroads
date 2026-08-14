@@ -11,6 +11,7 @@
     "test": "node node_modules/tsx/dist/cli.mjs --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
     "@react-native-google-signin/google-signin": "^16.1.4",
@@ -25,11 +26,11 @@
     "expo-sensors": "~57.0.2",
     "expo-splash-screen": "~57.0.2",
     "expo-status-bar": "~57.0.1",
+    "expo-updates": "~57.0.14",
     "expo-web-browser": "~57.0.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
-    "react-native-dropdown-picker": "^5.4.6",
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
