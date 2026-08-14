@@ -16,7 +16,7 @@ import { db } from './db/index.js';
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 const app = new Hono();
-const release = 'identity-admin-v1';
+const release = 'device-identity-v2';
 
 // ─── Global middleware ────────────────────────────────────────────────────────
 

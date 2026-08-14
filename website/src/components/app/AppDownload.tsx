@@ -65,7 +65,7 @@ export default function AppDownload() {
                 {APP_DOWNLOAD.requirement}
               </p>
               <p className="text-ink-3">
-                Free, no account needed.{' '}
+                Free, no email or Google account needed.{' '}
                 {APP_DOWNLOAD.playStoreUrl
                   ? ''
                   : 'Coming to Google Play soon.'}
@@ -124,8 +124,9 @@ export default function AppDownload() {
           <p className="eyebrow mb-2">What it collects</p>
           <p>
             Location while a journey you started is running, motion-sensor
-            readings, and an anonymous install ID. No account, no phone number, no
-            contacts. Full details in the{' '}
+            readings, a random install ID, and a private contributor ID with a
+            unique username. No email, phone number, or contacts are required.
+            Full details in the{' '}
             <a href="/privacy" className="link-underline font-medium text-ink">
               Privacy Policy
             </a>

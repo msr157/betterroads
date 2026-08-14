@@ -56,10 +56,12 @@ export default function Privacy() {
       <Section n={3} title="The BetterRoads mobile app">
         <p>
           The BetterRoads app measures road quality using your phone&apos;s sensors while you
-          travel. A Google account is required so contributions can be attributed and sessions can
-          be secured. We collect your Google subject identifier, verified email address, and the
-          required display name you provide. You may also provide a date of birth, gender, city,
-          and consent to appear on the public leaderboard. When you use it, we also collect:
+          travel. On first entry we create a random contributor ID and unique username so
+          contributions can be attributed and sessions can be secured. An email address or Google
+          account is not required. If you later choose to link Google, we collect its subject
+          identifier and verified email address. You may provide or edit your display name, date
+          of birth, gender, city, and consent to appear on the public leaderboard. When you use it,
+          we also collect:
         </p>
         <ul>
           <li>

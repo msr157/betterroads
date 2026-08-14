@@ -1,0 +1,93 @@
+name: BetterRoads Android release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'test-v*'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel
+        required: true
+        default: test
+        type: choice
+        options: [test, stable]
+      tag:
+        description: Release tag (for example test-v1.1.0-rc.1)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Select channel and tag
+        id: release
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "channel=${{ inputs.channel }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF_NAME}" == test-v* ]]; then
+            echo "channel=test" >> "$GITHUB_OUTPUT"
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=stable" >> "$GITHUB_OUTPUT"
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore Android signing files
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.BETTERROADS_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.BETTERROADS_KEYSTORE_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          mkdir -p mobile/app/signing
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > mobile/app/signing/betterroads-upload.jks
+          printf '%s' "$KEYSTORE_PASSWORD" > mobile/app/signing/keystore-password.txt
+
+      - name: Build signed APK and AAB
+        env:
+          BETTERROADS_RELEASE_CHANNEL: ${{ steps.release.outputs.channel }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
+        run: node scripts/build-apk.mjs
+
+      - name: Publish stable release
+        if: steps.release.outputs.channel == 'stable'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          prerelease: false
+          make_latest: true
+          generate_release_notes: true
+          files: |
+            mobile/app/release/BetterRoads.apk
+            mobile/app/release/BetterRoads-v*.apk
+            mobile/app/release/BetterRoads-v*.aab
+
+      - name: Publish test prerelease
+        if: steps.release.outputs.channel == 'test'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          prerelease: true
+          make_latest: false
+          generate_release_notes: true
+          files: |
+            mobile/app/release/BetterRoads-Test.apk
+            mobile/app/release/BetterRoads-Test-v*.apk
+            mobile/app/release/BetterRoads-Test-v*.aab

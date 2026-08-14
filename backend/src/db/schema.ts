@@ -16,8 +16,10 @@ export const users = pgTable(
   'users',
   {
     id: serial('id').primaryKey(),
-    googleSubject: text('google_subject').notNull(),
-    email: text('email').notNull(),
+    publicId: text('public_id').notNull(),
+    username: text('username').notNull(),
+    googleSubject: text('google_subject'),
+    email: text('email'),
     name: text('name').notNull(),
     dateOfBirth: date('date_of_birth'),
     gender: text('gender'),
@@ -28,6 +30,8 @@ export const users = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    uniqueIndex('users_public_id_idx').on(t.publicId),
+    uniqueIndex('users_username_idx').on(t.username),
     uniqueIndex('users_google_subject_idx').on(t.googleSubject),
     uniqueIndex('users_email_idx').on(t.email),
   ],

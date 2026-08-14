@@ -47,7 +47,7 @@ export const LEGAL = {
   governingLawState: 'Maharashtra',
 
   // Keep in sync when the documents are materially updated.
-  effectiveDate: '14 July 2026',
+  effectiveDate: '14 August 2026',
 } as const;
 
 // How BetterRoads works — visualised along the road.
@@ -88,7 +88,7 @@ export const STATS = [
  * with mobile/app/app.json on every release.
  */
 export const APP_DOWNLOAD = {
-  version: '1.0.1',
+  version: '1.1.0',
   apkUrl: '/downloads/BetterRoads.apk',
   apkName: 'BetterRoads.apk',
   requirement: 'Android 10 or newer',

@@ -8,7 +8,8 @@
     "build": "pnpm -r run build",
     "test": "node scripts/test-all.mjs",
     "typecheck:all": "pnpm -r run build && npm --prefix dashboard run build && npm --prefix mobile/app run typecheck",
-    "build:apk": "node scripts/build-apk.mjs"
+    "build:apk": "node scripts/build-apk.mjs",
+    "build:apk:test": "node -e \"process.env.BETTERROADS_RELEASE_CHANNEL='test'; import('./scripts/build-apk.mjs')\""
   },
   "keywords": [],
   "author": "",

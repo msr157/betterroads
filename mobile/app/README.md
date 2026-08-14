@@ -16,7 +16,9 @@ npx expo start            # Expo Go on a real phone (sensors need hardware)
 EXPO_PUBLIC_API_URL=http://<your-lan-ip>:3000 npx expo start
 ```
 
-Google authentication also requires `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` and
+Google authentication is disabled in the stable release and retained in the
+test channel for account-linking verification. Test builds require
+`EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` and
 `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`. Configure Google Cloud for Android package
 `org.betterroads.app` with the release/debug SHA-1 certificates. The Expo deep
 link redirect is `betterroads://oauth`. Bearer credentials are encrypted by
@@ -31,7 +33,8 @@ Expo Auth Session uses these OAuth client IDs directly; Firebase and
 
 Place `betterroads-upload.jks` and `keystore-password.txt` under
 `mobile/app/signing/` (or set `BETTERROADS_SIGNING_DIR`), start Docker, and run
-`npm run build:apk` at the repository root. Outputs are
+`npm run build:apk` at the repository root for the website/stable build, or
+`npm run build:apk:test` for the GitHub prerelease test build. Outputs are
 `mobile/app/release/BetterRoads-v<version>.apk`, `.aab`, and the stable
 `BetterRoads.apk` filename used for GitHub Releases.
 
@@ -48,9 +51,10 @@ Place `betterroads-upload.jks` and `keystore-password.txt` under
   flushed on next launch; idempotent on `journey.id`.
 - **`src/deviceId.ts`** — install-time UUID linked to the authenticated account
   only when a journey is uploaded.
-- **`src/auth.ts`** — Google token exchange, encrypted session/profile cache,
-  offline restoration, profile management, logout, and account deletion.
-- **`App.tsx`** — required sign-in and profile editor around the preserved
+- **`src/auth.ts`** — device-linked entry, optional Google exchange/linking,
+  encrypted session/profile cache, offline restoration, profile management,
+  logout, and account deletion.
+- **`App.tsx`** — contributor entry and profile editor around the preserved
   journey screen: vehicle picker → start → live RQI/events → end → upload.
 
 ## Not yet (deliberate v1 cuts)

@@ -18,7 +18,7 @@ find /proj/node_modules -name "build" -maxdepth 5 -type d -exec rm -rf {} + 2>/d
 find /proj/node_modules -name ".cxx" -maxdepth 5 -type d -exec rm -rf {} + 2>/dev/null || true
 
 npm ci --no-audit --no-fund
-npx expo prebuild --platform android --no-install
+npx expo prebuild --clean --platform android --no-install
 
 cp /signing/betterroads-upload.jks android/app/
 PW=$(cat /signing/keystore-password.txt | tr -d '\r\n')
@@ -68,10 +68,16 @@ cd android
 
 # Name the artifacts properly: BetterRoads-v<version>.apk / .aab
 VERSION=$(node -p "require('/proj/app.json').expo.version")
+CHANNEL=${BETTERROADS_RELEASE_CHANNEL:-stable}
 mkdir -p /proj/release
-cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads-v${VERSION}.apk"
-cp app/build/outputs/bundle/release/app-release.aab "/proj/release/BetterRoads-v${VERSION}.aab"
-# Stable filename used by the website's GitHub Releases redirect.
-cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads.apk"
+if [ "$CHANNEL" = "test" ]; then
+  cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads-Test-v${VERSION}.apk"
+  cp app/build/outputs/bundle/release/app-release.aab "/proj/release/BetterRoads-Test-v${VERSION}.aab"
+  cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads-Test.apk"
+else
+  cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads-v${VERSION}.apk"
+  cp app/build/outputs/bundle/release/app-release.aab "/proj/release/BetterRoads-v${VERSION}.aab"
+  cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads.apk"
+fi
 echo "══════ ARTIFACTS ══════"
 ls -la /proj/release/

@@ -4,9 +4,14 @@
 
 ### Identity and mobile
 
-- Added required Google sign-in, database-backed users, HMAC-hashed revocable
-  sessions, Secure Store restoration, profile editing, logout, and account
-  deletion.
+- Replaced required Google sign-in with device-linked "Enter BetterRoads"
+  onboarding. Every contributor receives an immutable public ID and unique,
+  editable username; email and Google identity are optional and unique when
+  linked later.
+- Added stable/test mobile channels: the website build keeps Google disabled,
+  while GitHub prereleases retain Google sign-in and account-link testing.
+- Added database-backed users, HMAC-hashed revocable sessions, Secure Store
+  restoration, validated profile editing, logout, and account deletion.
 - Authenticated journey ingestion is transactional and preserves legacy
   anonymous ownership. Only fully accepted contributions enter rankings.
 - Fixed offline profile restoration and retained rejected/conflicting queued
@@ -29,6 +34,8 @@
 - Added `npm run build:apk`; it validates Docker/signing inputs and creates
   signed versioned APK/AAB artifacts plus `BetterRoads.apk` under
   `mobile/app/release/`.
+- Added tag/manual GitHub release automation for stable `BetterRoads.apk` and
+  separate `BetterRoads-Test.apk` prerelease artifacts.
 - Made website, backend, and dashboard Docker contexts reproducible and expanded
   CI to build/typecheck/test every application and all three production images.
 - API startup now fails when migrations or administrator bootstrap fail, and

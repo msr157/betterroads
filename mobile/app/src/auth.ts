@@ -1,5 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
-import { API_URL } from '@/config';
+import * as Device from 'expo-device';
+import { Platform } from 'react-native';
+import { API_URL, APP_VERSION } from '@/config';
+import { getDeviceUuid } from '@/deviceId';
 
 const TOKEN_KEY = 'betterroads_user_token';
 const USER_ID_KEY = 'betterroads_user_id';
@@ -7,8 +10,11 @@ const USER_PROFILE_KEY = 'betterroads_user_profile';
 
 export type UserProfile = {
   id: number;
+  publicId: string;
+  username: string;
   name: string;
-  email: string;
+  email: string | null;
+  googleLinked: boolean;
   dateOfBirth: string | null;
   age: number | null;
   gender: string | null;
@@ -40,7 +46,7 @@ async function cachedUser(): Promise<UserProfile | null> {
   if (!value) return null;
   try {
     const user = JSON.parse(value) as UserProfile;
-    return Number.isInteger(user.id) && typeof user.name === 'string' && typeof user.email === 'string' ? user : null;
+    return Number.isInteger(user.id) && typeof user.publicId === 'string' && typeof user.username === 'string' && typeof user.name === 'string' ? user : null;
   } catch {
     return null;
   }
@@ -54,6 +60,29 @@ export async function exchangeGoogleToken(idToken: string): Promise<UserProfile>
   await SecureStore.setItemAsync(TOKEN_KEY, result.token);
   await cacheUser(result.user);
   return result.user;
+}
+
+export async function enterBetterRoads(): Promise<UserProfile> {
+  const result = await request<{ token: string; user: UserProfile }>('/api/mobile/auth/guest', {
+    method: 'POST',
+    body: JSON.stringify({
+      deviceUuid: await getDeviceUuid(),
+      platform: Platform.OS === 'ios' ? 'ios' : 'android',
+      model: Device.modelName ?? null,
+      appVersion: APP_VERSION,
+    }),
+  });
+  await SecureStore.setItemAsync(TOKEN_KEY, result.token);
+  await cacheUser(result.user);
+  return result.user;
+}
+
+export async function linkGoogleToken(idToken: string): Promise<UserProfile> {
+  const token = await getToken();
+  if (!token) throw new Error('Not signed in.');
+  const user = (await request<{ user: UserProfile }>('/api/mobile/auth/google/link', { method: 'POST', body: JSON.stringify({ idToken }) }, token)).user;
+  await cacheUser(user);
+  return user;
 }
 
 export async function restoreUser(): Promise<UserProfile | null> {
@@ -71,7 +100,7 @@ export async function restoreUser(): Promise<UserProfile | null> {
   }
 }
 
-export async function updateProfile(profile: Omit<UserProfile, 'id' | 'age' | 'email'>): Promise<UserProfile> {
+export async function updateProfile(profile: Omit<UserProfile, 'id' | 'publicId' | 'age' | 'email' | 'googleLinked'>): Promise<UserProfile> {
   const token = await getToken();
   if (!token) throw new Error('Not signed in.');
   const user = (await request<{ user: UserProfile }>('/api/mobile/me', { method: 'PUT', body: JSON.stringify(profile) }, token)).user;

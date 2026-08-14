@@ -6,4 +6,7 @@ export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://betterroads.o
 
 export const TRAVELDATA_ENDPOINT = `${API_URL}/api/user/mobile/traveldata`;
 
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.1.0';
+
+export const RELEASE_CHANNEL = process.env.EXPO_PUBLIC_RELEASE_CHANNEL === 'test' ? 'test' : 'stable';
+export const GOOGLE_AUTH_ENABLED = RELEASE_CHANNEL === 'test';
