@@ -243,15 +243,46 @@ export default function MapPage() {
       style: {
         version: 8,
         sources: {
-          osm: {
+          carto_base: {
             type: 'raster',
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tiles: ['https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png'],
             tileSize: 256,
             maxzoom: 19,
-            attribution: '© OpenStreetMap contributors',
+            attribution: '© OpenStreetMap contributors, © CARTO',
+          },
+          india_boundary: {
+            type: 'geojson',
+            data: '/india-simplified.geojson',
+          },
+          carto_labels: {
+            type: 'raster',
+            tiles: ['https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            maxzoom: 19,
           },
         },
-        layers: [{ id: 'osm-tiles', type: 'raster', source: 'osm' }],
+        layers: [
+          { id: 'carto-base', type: 'raster', source: 'carto_base' },
+          { 
+            id: 'india-boundary-casing',
+            type: 'line',
+            source: 'india_boundary',
+            paint: {
+              'line-color': '#f5f5f4',
+              'line-width': 4
+            }
+          },
+          { 
+            id: 'india-boundary',
+            type: 'line',
+            source: 'india_boundary',
+            paint: {
+              'line-color': '#d6d3ce',
+              'line-width': 1.5,
+            }
+          },
+          { id: 'carto-labels', type: 'raster', source: 'carto_labels' }
+        ],
       },
     });
     mapRef.current = map;
