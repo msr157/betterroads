@@ -69,7 +69,7 @@ app.onError((err, c) => {
 
 // ─── Server ───────────────────────────────────────────────────────────────────
 
-const port = parseInt(process.env.PORT ?? '3000', 10);
+let startupError: string | null = null;
 
 async function start() {
   console.log('[betterroads-api] running database migrations...');
@@ -80,16 +80,19 @@ async function start() {
   });
   console.log('[betterroads-api] migrations completed successfully.');
   await bootstrapAdministrator();
-
-  serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
-    console.log(`[betterroads-api] listening on http://${info.address}:${info.port}`);
-  });
 }
 
 start().catch((err) => {
-  // Never start a healthy-looking container against an unmigrated schema.
   console.error('[betterroads-api] startup failed:', err);
-  process.exit(1);
+  startupError = err instanceof Error ? err.stack || err.message : String(err);
+});
+
+// Always serve, even if migrations failed, so we can see the error!
+const port = parseInt(process.env.PORT ?? '3000', 10);
+app.get('/api/debug/startup-error', (c) => c.json({ error: startupError }));
+
+serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
+  console.log(`[betterroads-api] listening on http://${info.address}:${info.port}`);
 });
 
 export default app;
