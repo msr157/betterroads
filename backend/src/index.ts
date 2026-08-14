@@ -89,7 +89,10 @@ start().catch((err) => {
 
 // Always serve, even if migrations failed, so we can see the error!
 const port = parseInt(process.env.PORT ?? '3000', 10);
-app.get('/api/debug/startup-error', (c) => c.json({ error: startupError }));
+app.get('/api/debug/startup-error', (c) => c.json({ 
+  error: startupError,
+  databaseUrl: process.env.DATABASE_URL?.replace(/:[^:@]+@/, ':***@') 
+}));
 
 serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
   console.log(`[betterroads-api] listening on http://${info.address}:${info.port}`);
