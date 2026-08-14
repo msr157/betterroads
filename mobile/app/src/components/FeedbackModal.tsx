@@ -7,11 +7,13 @@ import {
   Pressable,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { radii, theme, typography } from '@/theme';
 import type { UserProfile } from '@/auth';
 
@@ -97,11 +99,12 @@ export function FeedbackModal({ visible, onClose, user }: Props) {
           <ScrollView
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
             {/* Sheet Header */}
             <View style={styles.headerRow}>
-              <View>
-                <Text style={typography.eyebrow}>BETTERROADS CIVIC INITIATIVE</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={typography.eyebrow}>BETTERROADS INITIATIVE</Text>
                 <Text style={styles.title}>Send Feedback</Text>
               </View>
               <Pressable
@@ -109,13 +112,17 @@ export function FeedbackModal({ visible, onClose, user }: Props) {
                 hitSlop={12}
                 style={styles.closeButton}
               >
-                <Text style={styles.closeButtonText}>✕</Text>
+                <Ionicons name="close" size={18} color={theme.ink2} />
               </Pressable>
             </View>
 
             {success ? (
               <View style={styles.successBox}>
-                <Text style={styles.successIcon}>🎉</Text>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={48}
+                  color={theme.green}
+                />
                 <Text style={styles.successTitle}>Thank you!</Text>
                 <Text style={styles.successSubtitle}>
                   Your feedback has been received and will help improve road intelligence for everyone.
@@ -191,7 +198,7 @@ export function FeedbackModal({ visible, onClose, user }: Props) {
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.82)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'flex-end',
   },
   sheetContainer: {
@@ -202,16 +209,20 @@ const styles = StyleSheet.create({
     borderColor: theme.lineStrong,
     borderBottomWidth: 0,
     maxHeight: '90%',
+    width: '100%',
   },
   content: {
-    padding: 24,
+    padding: 20,
+    paddingBottom: 32,
     gap: 12,
+    width: '100%',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
+    width: '100%',
   },
   title: {
     fontSize: 22,
@@ -231,23 +242,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeButtonText: {
-    color: theme.ink2,
-    fontSize: 14,
-    fontWeight: '700',
-  },
   fieldLabel: {
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
     color: theme.ink2,
-    marginTop: 6,
+    marginTop: 4,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    width: '100%',
   },
   chip: {
     paddingHorizontal: 16,
@@ -271,6 +278,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   input: {
+    width: '100%',
     backgroundColor: theme.bg3,
     borderWidth: 1,
     borderColor: theme.line,
@@ -281,16 +289,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   textArea: {
-    minHeight: 110,
+    minHeight: 100,
     textAlignVertical: 'top',
   },
   submitButton: {
+    width: '100%',
     backgroundColor: theme.saffronDeep,
     borderRadius: radii.full,
     paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: 10,
     shadowColor: theme.saffronDeep,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -303,24 +312,21 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   successBox: {
-    paddingVertical: 36,
+    paddingVertical: 32,
     alignItems: 'center',
     gap: 8,
-  },
-  successIcon: {
-    fontSize: 40,
-    marginBottom: 4,
+    width: '100%',
   },
   successTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: theme.ink,
   },
   successSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.ink2,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 19,
     maxWidth: 280,
   },
 });

@@ -36,6 +36,7 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [isInitialSetup, setIsInitialSetup] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
@@ -53,7 +54,6 @@ export default function App() {
       } catch {
         // network or storage error on boot
       } finally {
-        // Minimum smooth splash transition
         setTimeout(() => setBooting(false), 500);
       }
     })();
@@ -80,6 +80,8 @@ export default function App() {
         if (!idToken) throw new Error('Google did not return an ID token.');
         const profile = await exchangeGoogleToken(idToken);
         setUser(profile);
+        setIsInitialSetup(true);
+        setEditingProfile(true);
         await flushQueue();
         setPending(await pendingCount());
       }
@@ -98,6 +100,9 @@ export default function App() {
       setAuthLoading(true);
       const profile = await enterBetterRoads();
       setUser(profile);
+      // Immediately open Profile Editor for onboarding setup
+      setIsInitialSetup(true);
+      setEditingProfile(true);
       await flushQueue();
       setPending(await pendingCount());
     } catch (e) {
@@ -180,23 +185,30 @@ export default function App() {
     );
   }
 
-  // 3. Profile Editor Screen
+  // 3. Profile Editor Screen (opened immediately after onboarding or manually via profile pill)
   if (editingProfile) {
     return (
       <ProfileEditor
         user={user}
+        isInitialSetup={isInitialSetup}
         onSaved={(next) => {
           setUser(next);
           setEditingProfile(false);
+          setIsInitialSetup(false);
         }}
         onDeleted={() => {
           setUser(null);
           setEditingProfile(false);
+          setIsInitialSetup(false);
         }}
-        onCancel={() => setEditingProfile(false)}
+        onCancel={() => {
+          setEditingProfile(false);
+          setIsInitialSetup(false);
+        }}
         onLogout={() => {
           setUser(null);
           setEditingProfile(false);
+          setIsInitialSetup(false);
         }}
       />
     );
@@ -216,7 +228,10 @@ export default function App() {
         message={message}
         onStartJourney={() => void startJourney()}
         onStopJourney={() => void stopJourney()}
-        onOpenProfile={() => setEditingProfile(true)}
+        onOpenProfile={() => {
+          setIsInitialSetup(false);
+          setEditingProfile(true);
+        }}
         onOpenFeedback={() => setFeedbackOpen(true)}
       />
 
