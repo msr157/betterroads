@@ -50,10 +50,9 @@ export function SplashView({ statusText = 'Initializing...' }: Props) {
         {/* Eyebrow */}
         <Text style={typography.eyebrow}>CITIZEN ROAD INTELLIGENCE</Text>
 
-        {/* Brand Wordmark with Saffron Dot */}
+        {/* Brand Wordmark */}
         <View style={styles.brandRow}>
-          <Text style={styles.wordmark}>betterroads</Text>
-          <Text style={styles.accentDot}>.</Text>
+          <Text style={styles.wordmark}>BetterRoads</Text>
         </View>
 
         {/* Flag Rule */}

@@ -104,8 +104,7 @@ export function JourneyDashboard({
         <View style={styles.topBar}>
           <View style={{ flex: 1 }}>
             <View style={styles.brandRow}>
-              <Text style={styles.wordmark}>betterroads</Text>
-              <Text style={styles.accentDot}>.</Text>
+              <Text style={styles.wordmark}>BetterRoads</Text>
             </View>
             <Text style={styles.topEyebrow}>
               CITIZEN MOVEMENT FOR INDIA'S ROADS
