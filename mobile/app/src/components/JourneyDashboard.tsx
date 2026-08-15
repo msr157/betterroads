@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Linking,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -18,6 +20,33 @@ import { VEHICLES } from '@/vehicles';
 import type { VehicleType } from '@/types';
 import type { EngineSnapshot } from '@/sensorEngine';
 import type { UserProfile } from '@/auth';
+
+const SOCIAL_LINKS = [
+  {
+    id: 'instagram',
+    label: 'Instagram',
+    iconName: 'logo-instagram' as const,
+    url: 'https://www.instagram.com/betterroads_org/',
+  },
+  {
+    id: 'x',
+    label: 'X',
+    iconName: 'logo-twitter' as const,
+    url: 'https://x.com/BetterRoadz',
+  },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    iconName: 'logo-linkedin' as const,
+    url: 'https://www.linkedin.com/company/betterroads',
+  },
+  {
+    id: 'youtube',
+    label: 'YouTube',
+    iconName: 'logo-youtube' as const,
+    url: 'https://www.youtube.com/@BetterRoadsOrg',
+  },
+];
 
 const VEHICLE_ICONS: Record<
   VehicleType,
@@ -60,6 +89,8 @@ export function JourneyDashboard({
   onOpenProfile,
   onOpenFeedback,
 }: Props) {
+  const [rqiInfoOpen, setRqiInfoOpen] = useState(false);
+
   // Pulsing dot animation for live recording
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -92,6 +123,10 @@ export function JourneyDashboard({
 
   const displayName = user?.name || 'Contributor';
   const initial = displayName.trim().charAt(0).toUpperCase() || 'C';
+
+  const openSocial = (url: string) => {
+    Linking.openURL(url).catch(() => {});
+  };
 
   return (
     <SafeAreaView style={styles.root}>
@@ -181,13 +216,23 @@ export function JourneyDashboard({
                 </Text>
               </View>
 
-              <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>LIVE RQI</Text>
+              <Pressable
+                style={styles.metricCard}
+                onPress={() => setRqiInfoOpen(true)}
+              >
+                <View style={styles.metricLabelRow}>
+                  <Text style={styles.metricLabel}>LIVE RQI</Text>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={13}
+                    color={theme.ink3}
+                  />
+                </View>
                 <Text style={[styles.metricValue, { color: rqiColor }]}>
                   {liveRqi}
                   <Text style={styles.metricUnit}> / 100</Text>
                 </Text>
-              </View>
+              </Pressable>
 
               <View style={styles.metricCard}>
                 <Text style={styles.metricLabel}>EVENTS LOGGED</Text>
@@ -309,7 +354,21 @@ export function JourneyDashboard({
         {/* Info & Instructions Card */}
         {!recording && (
           <View style={styles.instructionsCard}>
-            <Text style={styles.instructionsTitle}>How to Record</Text>
+            <View style={styles.instructionsHeaderRow}>
+              <Text style={styles.instructionsTitle}>How to Record</Text>
+              <Pressable
+                onPress={() => setRqiInfoOpen(true)}
+                style={styles.rqiPillButton}
+              >
+                <Ionicons
+                  name="speedometer-outline"
+                  size={13}
+                  color={theme.saffronLift}
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={styles.rqiPillText}>RQI Calculator Info</Text>
+              </Pressable>
+            </View>
             <View style={styles.instructionStep}>
               <Text style={styles.stepNum}>1</Text>
               <Text style={styles.stepText}>
@@ -348,7 +407,127 @@ export function JourneyDashboard({
             Recording runs while the app is active in the foreground. Road
             quality data is published anonymously to the BetterRoads public map.
           </Text>
+
+          {/* Social Channels in Dashboard Footer */}
+          <View style={styles.dashboardSocialCard}>
+            <Text style={styles.dashboardSocialTitle}>
+              Connect with BetterRoads
+            </Text>
+            <View style={styles.dashboardSocialRow}>
+              {SOCIAL_LINKS.map((s) => (
+                <Pressable
+                  key={s.id}
+                  onPress={() => openSocial(s.url)}
+                  style={styles.dashboardSocialButton}
+                >
+                  <Ionicons
+                    name={s.iconName}
+                    size={22}
+                    color={theme.saffronLift}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          </View>
         </View>
+
+        {/* RQI Road Quality Calculator Modal */}
+        <Modal
+          visible={rqiInfoOpen}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setRqiInfoOpen(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <SafeAreaView style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={typography.eyebrow}>CALIBRATION & METRICS</Text>
+                  <Text style={styles.modalTitle}>
+                    Road Quality Index (RQI)
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setRqiInfoOpen(false)}
+                  hitSlop={12}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons name="close" size={18} color={theme.ink2} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                style={{ width: '100%' }}
+                contentContainerStyle={styles.modalContent}
+              >
+                <View style={styles.rqiScoreBreakdown}>
+                  <View
+                    style={[
+                      styles.scoreBadge,
+                      { backgroundColor: 'rgba(27, 122, 67, 0.15)' },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.scoreBadgeNum, { color: theme.green }]}
+                    >
+                      75 - 100
+                    </Text>
+                    <Text style={styles.scoreBadgeLabel}>Smooth / Good</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.scoreBadge,
+                      { backgroundColor: 'rgba(250, 178, 25, 0.15)' },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.scoreBadgeNum, { color: theme.warn }]}
+                    >
+                      45 - 74
+                    </Text>
+                    <Text style={styles.scoreBadgeLabel}>Moderate Roughness</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.scoreBadge,
+                      { backgroundColor: 'rgba(208, 59, 59, 0.15)' },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.scoreBadgeNum, { color: theme.danger }]}
+                    >
+                      0 - 44
+                    </Text>
+                    <Text style={styles.scoreBadgeLabel}>Severe Potholes</Text>
+                  </View>
+                </View>
+
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoCardHeading}>
+                    How RQI is Computed
+                  </Text>
+                  <Text style={styles.infoCardBody}>
+                    BetterRoads samples 3-axis accelerometer and gyroscope
+                    signals at ~50 Hz. It applies a 0.5–10 Hz bandpass filter to
+                    isolate road impacts from vehicle engine baseline.
+                  </Text>
+                  <Text style={styles.infoCardBody}>
+                    Sudden z-axis spikes indicate potholes and speed bumps,
+                    penalizing the segment score. Baseline RMS roughness
+                    accounts for surface deterioration.
+                  </Text>
+                </View>
+
+                <Pressable
+                  style={styles.closeModalButton}
+                  onPress={() => setRqiInfoOpen(false)}
+                >
+                  <Text style={styles.closeModalButtonText}>Got it</Text>
+                </Pressable>
+              </ScrollView>
+            </SafeAreaView>
+          </View>
+        </Modal>
       </ScrollView>
     </SafeAreaView>
   );
@@ -385,11 +564,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: -0.8,
     color: theme.ink,
-  },
-  accentDot: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: theme.saffron,
   },
   topEyebrow: {
     fontSize: 9,
@@ -519,6 +693,11 @@ const styles = StyleSheet.create({
     borderColor: theme.line,
     padding: 12,
     gap: 4,
+  },
+  metricLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   metricLabel: {
     fontSize: 10,
@@ -681,13 +860,33 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
   },
+  instructionsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
   instructionsTitle: {
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
     color: theme.ink2,
-    marginBottom: 4,
+  },
+  rqiPillButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.bg3,
+    borderWidth: 1,
+    borderColor: theme.line,
+    borderRadius: radii.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  rqiPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.saffronLift,
   },
   instructionStep: {
     flexDirection: 'row',
@@ -715,7 +914,7 @@ const styles = StyleSheet.create({
   },
   footerSection: {
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     marginTop: 6,
     width: '100%',
   },
@@ -736,5 +935,142 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 16,
     paddingHorizontal: 12,
+  },
+  dashboardSocialCard: {
+    width: '100%',
+    backgroundColor: theme.bg2,
+    borderWidth: 1,
+    borderColor: theme.line,
+    borderRadius: radii.xl,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 6,
+  },
+  dashboardSocialTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: theme.ink2,
+  },
+  dashboardSocialRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  dashboardSocialButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.bg3,
+    borderWidth: 1,
+    borderColor: theme.lineStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: theme.bg2,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: theme.lineStrong,
+    borderBottomWidth: 0,
+    maxHeight: '85%',
+    width: '100%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.line,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    color: theme.ink,
+    marginTop: 2,
+  },
+  modalCloseButton: {
+    padding: 6,
+    borderRadius: radii.full,
+    backgroundColor: theme.bg3,
+    borderWidth: 1,
+    borderColor: theme.line,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalContent: {
+    padding: 20,
+    paddingBottom: 32,
+    gap: 14,
+  },
+  rqiScoreBreakdown: {
+    gap: 8,
+  },
+  scoreBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: theme.line,
+  },
+  scoreBadgeNum: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  scoreBadgeLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.ink,
+  },
+  infoCard: {
+    backgroundColor: theme.bg3,
+    borderWidth: 1,
+    borderColor: theme.line,
+    borderRadius: radii.lg,
+    padding: 16,
+    gap: 8,
+  },
+  infoCardHeading: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: theme.saffronLift,
+  },
+  infoCardBody: {
+    fontSize: 13,
+    color: theme.ink2,
+    lineHeight: 19,
+  },
+  closeModalButton: {
+    width: '100%',
+    backgroundColor: theme.saffronDeep,
+    borderRadius: radii.full,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  closeModalButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '800',
   },
 });
