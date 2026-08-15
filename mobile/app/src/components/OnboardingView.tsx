@@ -38,6 +38,12 @@ const SOCIAL_LINKS = [
     iconName: 'logo-linkedin' as const,
     url: 'https://www.linkedin.com/company/betterroads',
   },
+  {
+    id: 'youtube',
+    label: 'YouTube',
+    iconName: 'logo-youtube' as const,
+    url: 'https://www.youtube.com/@BetterRoadsOrg',
+  },
 ];
 
 const SLIDES = [
@@ -50,7 +56,7 @@ const SLIDES = [
     description:
       'Map and score road quality automatically as you commute using your smartphone\'s motion sensors.',
     iconName: 'analytics-outline' as const,
-    progressColor: '#80F17E',
+    progressColor: theme.saffron,
   },
   {
     id: 'intelligence',
@@ -61,7 +67,7 @@ const SLIDES = [
     description:
       'Real-time vibration analysis logs potholes, speed breakers, and surface roughness as you ride.',
     iconName: 'hardware-chip-outline' as const,
-    progressColor: '#80F17E',
+    progressColor: theme.saffron,
   },
   {
     id: 'privacy',
@@ -72,7 +78,7 @@ const SLIDES = [
     description:
       'Anonymous device contributor identity. Enable location to automatically map your civic district.',
     iconName: 'shield-checkmark-outline' as const,
-    progressColor: '#80F17E',
+    progressColor: theme.saffron,
   },
 ];
 
@@ -143,23 +149,22 @@ export function OnboardingView({
 
   return (
     <SafeAreaView style={styles.root}>
-      {/* Top Header with Wordmark and Socials */}
+      {/* Top Header with Wordmark and Top Bar Socials */}
       <View style={styles.header}>
         <View style={styles.brandRow}>
-          <Text style={styles.wordmark}>betterroads</Text>
-          <Text style={styles.accentDot}>.</Text>
+          <Text style={styles.wordmark}>BetterRoads</Text>
         </View>
 
-        {/* Social Icons in Header */}
-        <View style={styles.socialRow}>
+        {/* Top Bar Social Icons */}
+        <View style={styles.socialHeaderRow}>
           {SOCIAL_LINKS.map((s) => (
             <Pressable
               key={s.id}
               onPress={() => openSocial(s.url)}
               hitSlop={10}
-              style={styles.socialButton}
+              style={styles.socialHeaderButton}
             >
-              <Ionicons name={s.iconName} size={18} color={theme.ink2} />
+              <Ionicons name={s.iconName} size={20} color={theme.ink2} />
             </Pressable>
           ))}
         </View>
@@ -170,104 +175,112 @@ export function OnboardingView({
         <FlagRule width="100%" height={2} />
       </View>
 
-      {/* Feature Carousel */}
+      {/* Main Content Area */}
       <View
-        style={styles.carouselContainer}
+        style={styles.mainContent}
         onTouchStart={() => {
           isAutoPlayingRef.current = false;
         }}
       >
-        <FlatList
-          ref={listRef}
-          data={SLIDES}
-          keyExtractor={(item) => item.id}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={handleScroll}
-          getItemLayout={(_, index) => ({
-            length: width,
-            offset: width * index,
-            index,
-          })}
-          renderItem={({ item }) => (
-            <View style={[styles.slide, { width }]}>
-              {/* Feature Eyebrow */}
-              <View style={styles.slideEyebrowBadge}>
-                <Text style={styles.slideEyebrowText}>{item.eyebrow}</Text>
+        {/* Feature Carousel */}
+        <View style={styles.carouselWrapper}>
+          <FlatList
+            ref={listRef}
+            data={SLIDES}
+            keyExtractor={(item) => item.id}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={handleScroll}
+            getItemLayout={(_, index) => ({
+              length: width,
+              offset: width * index,
+              index,
+            })}
+            renderItem={({ item }) => (
+              <View style={[styles.slide, { width }]}>
+                {/* Feature Eyebrow */}
+                <View style={styles.slideEyebrowBadge}>
+                  <Text style={styles.slideEyebrowText}>{item.eyebrow}</Text>
+                </View>
+
+                {/* Monumental Headline */}
+                <Text style={styles.headline}>
+                  {item.titlePart1}
+                  <Text style={styles.highlightText}>{item.titleHighlight}</Text>
+                </Text>
+
+                {/* Tagline */}
+                <Text style={styles.slideTagline}>{item.tagline}</Text>
+
+                {/* Centered Feature Card */}
+                <View style={styles.featureCard}>
+                  <View style={styles.iconCircle}>
+                    <Ionicons
+                      name={item.iconName}
+                      size={32}
+                      color={theme.saffronLift}
+                    />
+                  </View>
+                  <View style={styles.featureTextWrapper}>
+                    <Text style={styles.featureDescription}>
+                      {item.description}
+                    </Text>
+                  </View>
+                </View>
               </View>
+            )}
+          />
+        </View>
 
-              {/* Monumental Headline */}
-              <Text style={styles.headline}>
-                {item.titlePart1}
-                <Text style={styles.highlightText}>{item.titleHighlight}</Text>
-              </Text>
+        {/* Middle Banner: Citizen Movement & Larger Centered Socials */}
+        <View style={styles.middleBannerContainer}>
+          <View style={styles.bannerCard}>
+            <View style={styles.bannerHeaderRow}>
+              <FlagRule width={32} height={2} />
+              <Text style={styles.bannerTitle}>Join the Citizen Movement</Text>
+              <FlagRule width={32} height={2} />
+            </View>
+            <Text style={styles.bannerSubtitle}>
+              Fix India's roads through open, crowdsourced data.
+            </Text>
 
-              {/* Tagline */}
-              <Text style={styles.slideTagline}>{item.tagline}</Text>
-
-              {/* Visual Card with Minimal Vector Icon */}
-              <View style={styles.featureCard}>
-                <View style={styles.iconCircle}>
+            {/* Larger Centered Social Icons */}
+            <View style={styles.largeSocialRow}>
+              {SOCIAL_LINKS.map((s) => (
+                <Pressable
+                  key={s.id}
+                  onPress={() => openSocial(s.url)}
+                  style={styles.largeSocialButton}
+                >
                   <Ionicons
-                    name={item.iconName}
-                    size={32}
+                    name={s.iconName}
+                    size={24}
                     color={theme.saffronLift}
                   />
-                </View>
-                <Text style={styles.featureDescription}>
-                  {item.description}
-                </Text>
-              </View>
+                </Pressable>
+              ))}
             </View>
-          )}
-        />
-      </View>
-
-      {/* Middle Banner: Citizen Movement & Socials */}
-      <View style={styles.middleBannerContainer}>
-        <View style={styles.bannerCard}>
-          <View style={styles.bannerHeaderRow}>
-            <FlagRule width={24} height={2} />
-            <Text style={styles.bannerTitle}>Join the Citizen Movement</Text>
-            <FlagRule width={24} height={2} />
-          </View>
-          <Text style={styles.bannerSubtitle}>
-            Fix India's roads through open, crowdsourced data.
-          </Text>
-
-          {/* Social Links Row inside banner for balanced composition */}
-          <View style={styles.bannerSocialsRow}>
-            {SOCIAL_LINKS.map((s) => (
-              <Pressable
-                key={s.id}
-                onPress={() => openSocial(s.url)}
-                style={styles.bannerSocialPill}
-              >
-                <Ionicons name={s.iconName} size={14} color={theme.saffron} />
-                <Text style={styles.bannerSocialText}>{s.label}</Text>
-              </Pressable>
-            ))}
           </View>
         </View>
-      </View>
 
-      {/* Interactive Pagination Dots */}
-      <View style={styles.paginationRow}>
-        {SLIDES.map((_, i) => (
-          <Pressable
-            key={i}
-            onPress={() => {
-              isAutoPlayingRef.current = false;
-              goToSlide(i);
-            }}
-            hitSlop={12}
-            style={[
-              styles.dot,
-              i === activeIndex ? styles.dotActive : styles.dotInactive,
-            ]}
-          />
-        ))}
+        {/* Interactive Pagination Dots */}
+        <View style={styles.paginationRow}>
+          {SLIDES.map((_, i) => (
+            <Pressable
+              key={i}
+              onPress={() => {
+                isAutoPlayingRef.current = false;
+                goToSlide(i);
+              }}
+              hitSlop={12}
+              style={[
+                styles.dot,
+                i === activeIndex ? styles.dotActive : styles.dotInactive,
+              ]}
+            />
+          ))}
+        </View>
       </View>
 
       {/* Bottom Action Area */}
@@ -275,7 +288,7 @@ export function OnboardingView({
         {error && <Text style={styles.errorText}>{error}</Text>}
 
         {!isLastSlide ? (
-          /* Arrow Next Button on Slide 1 & 2 */
+          /* Saffron Circular Arrow Next Button on Slide 1 & 2 */
           <View style={styles.arrowButtonContainer}>
             <ArrowNextButton
               onPress={() => {
@@ -283,7 +296,7 @@ export function OnboardingView({
                 nextSlide();
               }}
               size={68}
-              progressColor={SLIDES[activeIndex]?.progressColor || '#80F17E'}
+              progressColor={theme.saffron}
             />
           </View>
         ) : (
@@ -300,9 +313,9 @@ export function OnboardingView({
                 <View style={styles.primaryButtonContent}>
                   <Ionicons
                     name="location-outline"
-                    size={18}
+                    size={20}
                     color="#ffffff"
-                    style={{ marginRight: 6 }}
+                    style={{ marginRight: 8 }}
                   />
                   <Text style={styles.primaryButtonText}>
                     Enter & Set Up Profile
@@ -360,17 +373,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
     color: theme.ink,
   },
-  accentDot: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: theme.saffron,
-  },
-  socialRow: {
+  socialHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
-  socialButton: {
+  socialHeaderButton: {
     padding: 6,
     borderRadius: radii.full,
     backgroundColor: theme.bg2,
@@ -379,13 +387,16 @@ const styles = StyleSheet.create({
   },
   flagRuleContainer: {
     paddingHorizontal: 20,
-    marginBottom: 4,
+    marginBottom: 6,
     width: '100%',
   },
-  carouselContainer: {
+  mainContent: {
     flex: 1,
-    justifyContent: 'center',
-    maxHeight: 330,
+    justifyContent: 'space-around',
+    width: '100%',
+  },
+  carouselWrapper: {
+    width: '100%',
   },
   slide: {
     paddingHorizontal: 16,
@@ -430,29 +441,37 @@ const styles = StyleSheet.create({
   },
   featureCard: {
     width: '100%',
+    minHeight: 160,
     backgroundColor: theme.bg2,
     borderWidth: 1,
     borderColor: theme.line,
     borderRadius: radii.xl,
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'center',
+    gap: 12,
   },
   iconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: theme.saffronTint,
     borderWidth: 1,
     borderColor: theme.lineStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  featureTextWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
   featureDescription: {
-    fontSize: 13,
+    fontSize: 14,
     color: theme.ink,
     textAlign: 'center',
-    lineHeight: 19,
+    lineHeight: 21,
     fontWeight: '500',
     maxWidth: 300,
   },
@@ -462,14 +481,14 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   bannerCard: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
     backgroundColor: theme.bg2,
     borderWidth: 1,
     borderColor: theme.lineStrong,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   bannerHeaderRow: {
     flexDirection: 'row',
@@ -477,36 +496,32 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   bannerTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
     color: theme.ink,
   },
   bannerSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: theme.ink2,
     textAlign: 'center',
+    lineHeight: 16,
   },
-  bannerSocialsRow: {
+  largeSocialRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 16,
     marginTop: 4,
   },
-  bannerSocialPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
+  largeSocialButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: theme.bg3,
     borderWidth: 1,
-    borderColor: theme.line,
-    borderRadius: radii.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  bannerSocialText: {
-    fontSize: 11,
-    color: theme.ink,
-    fontWeight: '600',
+    borderColor: theme.lineStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   paginationRow: {
     flexDirection: 'row',
@@ -529,7 +544,7 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 20,
     alignItems: 'center',
     width: '100%',
   },
@@ -545,7 +560,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     backgroundColor: theme.saffronDeep,
     borderRadius: radii.full,
-    paddingVertical: 15,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: theme.saffronDeep,
