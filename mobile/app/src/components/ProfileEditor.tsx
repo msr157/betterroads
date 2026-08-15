@@ -462,6 +462,15 @@ export function ProfileEditor({
             )}
           </Pressable>
 
+          {isInitialSetup && (
+            <Pressable
+              style={styles.skipButton}
+              onPress={onCancel}
+            >
+              <Text style={styles.skipButtonText}>Skip for now & start exploring</Text>
+            </Pressable>
+          )}
+
           {!isInitialSetup && (
             <Pressable
               style={styles.feedbackButton}
@@ -799,6 +808,21 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '800',
+  },
+  skipButton: {
+    width: '100%',
+    backgroundColor: theme.bg2,
+    borderWidth: 1,
+    borderColor: theme.line,
+    borderRadius: radii.full,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipButtonText: {
+    color: theme.ink2,
+    fontSize: 14,
+    fontWeight: '700',
   },
   feedbackButton: {
     width: '100%',
