@@ -10,6 +10,7 @@ import { travelDataRouter } from './routes/traveldata.js';
 import { publicRoadsRouter } from './routes/publicRoads.js';
 import { adminRouter } from './routes/admin.js';
 import { mobileAuthRouter } from './routes/mobileAuth.js';
+import { collectionRouter } from './routes/collection.js';
 import { bootstrapAdministrator } from './lib/auth.js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { db } from './db/index.js';
@@ -53,6 +54,8 @@ app.route('/api/waitlist', waitlistRouter);
  */
 app.route('/user/mobile', travelDataRouter);
 app.route('/api/user/mobile', travelDataRouter);
+app.route('/user/mobile', collectionRouter);
+app.route('/api/user/mobile', collectionRouter);
 app.route('/api/mobile', mobileAuthRouter);
 
 /** Public map + timeline read API */

@@ -11,7 +11,7 @@ We performed a complete redesign and bug-fix overhaul of the BetterRoads mobile 
 | Previous Issue / Bug | Root Cause | Solution Implemented |
 | :--- | :--- | :--- |
 | **6–7 Gender options with cluttered chips** | Legacy list with redundant gender categories | Replaced with strictly **3 clean options**: `Male`, `Female`, and `Prefer not to say`. |
-| **White unreadable state/city picker** | `react-native-dropdown-picker` rendered a bright white non-scrollable popup in dark mode | Replaced with a custom dark-themed **`SearchModalPicker`** with instant fuzzy search for all 36 Indian States/UTs and Cities from `country-state-city`. |
+| **White unreadable state/city picker** | `react-native-dropdown-picker` rendered a bright white non-scrollable popup in dark mode | Replaced with a custom dark-themed **`SearchModalPicker`** with instant fuzzy search across the checked-in India-only states and cities dataset. |
 | **Status bar & notch overlap** | Headers lacked status bar clearance on Android devices | Added dynamic `StatusBar.currentHeight` and `SafeAreaView` top padding across all screens and modals. |
 | **Narrow / misaligned card dimensions** | Hardcoded `maxWidth: 480` and centering caused huge blank side margins on mobile | Removed rigid constraints; applied `width: '100%'` with consistent 16px/20px padding. |
 | **Web / preview storage crash** | `expo-secure-store` threw fatal error on web | Built a cross-platform safe storage layer in `auth.ts` with `AsyncStorage` fallback. |

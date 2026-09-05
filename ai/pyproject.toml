@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "betterroads-ai"
 version = "0.1.0"
-description = "BetterRoads AI Core Engine v1 — batch classification (speed-breaker vs damage) and deterministic rebuild of road-quality aggregates."
+description = "BetterRoads legacy aggregate engine plus vehicle-separated v3 model research tooling."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,6 +15,13 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "pytest>=8",
+]
+train = [
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "scikit-learn>=1.5",
+    "lightgbm>=4.5",
+    "joblib>=1.4",
 ]
 
 [tool.setuptools]

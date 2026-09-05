@@ -86,6 +86,9 @@ export const rateLimitMiddleware = makeMiddleware(new SlidingWindowLimiter(6, 60
  */
 export const ingestRateLimitMiddleware = makeMiddleware(new SlidingWindowLimiter(60, 60_000));
 
+/** Collection manifest/init requests. Raw bytes upload directly to private object storage. */
+export const collectionRateLimitMiddleware = makeMiddleware(new SlidingWindowLimiter(90, 60_000));
+
 /** Global baseline spam protection for all APIs: 100 requests per IP per minute. */
 export const globalApiRateLimitMiddleware = makeMiddleware(new SlidingWindowLimiter(100, 60_000));
 

@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   Animated,
   Linking,
-  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -13,12 +12,14 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { radii, theme, typography } from '@/theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { radii, theme } from '@/theme';
 import { FlagRule } from '@/components/FlagRule';
 import { VEHICLES } from '@/vehicles';
-import type { VehicleType } from '@/types';
-import type { EngineSnapshot } from '@/sensorEngine';
+import type { CollectionMode, VehicleType } from '@/types';
+import type { CollectionRecorderSnapshot } from '@/journeyRecorder';
+import { profileFor } from '@/collection/vehicleProfiles';
 import type { UserProfile } from '@/auth';
 
 const SOCIAL_LINKS = [
@@ -64,13 +65,21 @@ type Props = {
   user: UserProfile;
   vehicle: VehicleType;
   onSelectVehicle: (v: VehicleType) => void;
+  collectionMode: CollectionMode;
+  onSelectCollectionMode: (mode: CollectionMode) => void;
+  installationId: string;
+  vehicleSubtype: string;
+  onSelectVehicleSubtype: (value: string) => void;
+  mountPosition: string;
+  onSelectMountPosition: (value: string) => void;
   recording: boolean;
   uploading: boolean;
-  snapshot: EngineSnapshot | null;
+  snapshot: CollectionRecorderSnapshot | null;
   pendingCount: number;
   message: string | null;
   onStartJourney: () => void;
   onStopJourney: () => void;
+  onMarkRoadFeature: () => void;
   onOpenProfile: () => void;
   onOpenFeedback: () => void;
 };
@@ -79,6 +88,13 @@ export function JourneyDashboard({
   user,
   vehicle,
   onSelectVehicle,
+  collectionMode,
+  onSelectCollectionMode,
+  installationId,
+  vehicleSubtype,
+  onSelectVehicleSubtype,
+  mountPosition,
+  onSelectMountPosition,
   recording,
   uploading,
   snapshot,
@@ -86,11 +102,10 @@ export function JourneyDashboard({
   message,
   onStartJourney,
   onStopJourney,
+  onMarkRoadFeature,
   onOpenProfile,
   onOpenFeedback,
 }: Props) {
-  const [rqiInfoOpen, setRqiInfoOpen] = useState(false);
-
   // Pulsing dot animation for live recording
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -117,9 +132,15 @@ export function JourneyDashboard({
     }
   }, [recording, pulseAnim]);
 
-  const liveRqi = Math.round(snapshot?.liveSegmentRqi ?? 100);
-  const rqiColor =
-    liveRqi >= 75 ? theme.green : liveRqi >= 45 ? theme.warn : theme.danger;
+  const motionState = snapshot?.motionState ?? 'acquiring';
+  const statusCopy = motionState === 'moving'
+    ? 'Recording'
+    : motionState === 'temporary-stop'
+      ? 'Paused in traffic'
+      : motionState === 'stationary'
+        ? 'Ready'
+        : 'Acquiring GPS';
+  const profile = profileFor(vehicle);
 
   const displayName = user?.name || 'Contributor';
   const initial = displayName.trim().charAt(0).toUpperCase() || 'C';
@@ -178,10 +199,9 @@ export function JourneyDashboard({
 
         {/* Hero Section */}
         <View style={styles.heroSection}>
-          <Text style={typography.eyebrow}>ROAD QUALITY SENSING</Text>
           <Text style={styles.heroHeadline}>
-            Every ride scores the{' '}
-            <Text style={{ color: theme.saffronDeep }}>Road.</Text>
+            Turn this journey into{' '}
+            <Text style={{ color: theme.saffronDeep }}>road evidence.</Text>
           </Text>
         </View>
 
@@ -194,7 +214,7 @@ export function JourneyDashboard({
                 <Animated.View
                   style={[styles.recordingDot, { opacity: pulseAnim }]}
                 />
-                <Text style={styles.recordingText}>RECORDING LIVE</Text>
+                <Text style={styles.recordingText}>{statusCopy.toUpperCase()}</Text>
               </View>
               <View style={styles.vehicleTagRow}>
                 <MaterialCommunityIcons
@@ -216,35 +236,20 @@ export function JourneyDashboard({
                 </Text>
               </View>
 
-              <Pressable
-                style={styles.metricCard}
-                onPress={() => setRqiInfoOpen(true)}
-              >
-                <View style={styles.metricLabelRow}>
-                  <Text style={styles.metricLabel}>LIVE RQI</Text>
-                  <Ionicons
-                    name="information-circle-outline"
-                    size={13}
-                    color={theme.ink3}
-                  />
-                </View>
-                <Text style={[styles.metricValue, { color: rqiColor }]}>
-                  {liveRqi}
-                  <Text style={styles.metricUnit}> / 100</Text>
-                </Text>
-              </Pressable>
-
               <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>EVENTS LOGGED</Text>
-                <Text style={styles.metricValue}>
-                  {snapshot?.eventCount ?? 0}
-                </Text>
+                <Text style={styles.metricLabel}>CANDIDATE WINDOWS</Text>
+                <Text style={styles.metricValue}>{snapshot?.candidateCount ?? 0}</Text>
               </View>
 
               <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>SEGMENTS</Text>
-                <Text style={styles.metricValue}>
-                  {snapshot?.segmentCount ?? 0}
+                <Text style={styles.metricLabel}>NORMAL WINDOWS</Text>
+                <Text style={styles.metricValue}>{snapshot?.normalWindowCount ?? 0}</Text>
+              </View>
+
+              <View style={styles.metricCard}>
+                <Text style={styles.metricLabel}>MOUNT</Text>
+                <Text style={styles.metricStatusValue}>
+                  {snapshot?.isStableMount ? 'Stable' : snapshot?.mountCalibrated ? 'Check' : 'Calibrating'}
                 </Text>
               </View>
             </View>
@@ -254,10 +259,17 @@ export function JourneyDashboard({
               <View style={styles.warningBox}>
                 <Ionicons name="warning-outline" size={18} color={theme.warn} />
                 <Text style={styles.warningText}>
-                  Phone looks unmounted — fix it firmly to a dashboard or holder
-                  so readings remain accurate.
+                  {snapshot.mountCalibrated
+                    ? 'The phone moved. Secure it in the selected mount; collection resumes after it is stable.'
+                    : 'Keep the phone fixed while BetterRoads calibrates the selected mount.'}
                 </Text>
               </View>
+            )}
+            {collectionMode === 'CONTROLLED_RESEARCH' && (
+              <Pressable accessibilityRole="button" onPress={onMarkRoadFeature} style={styles.markerButton}>
+                <Ionicons name="flag-outline" size={18} color={theme.saffronLift} />
+                <Text style={styles.markerButtonText}>Passenger: mark road feature</Text>
+              </Pressable>
             )}
           </View>
         ) : (
@@ -266,7 +278,7 @@ export function JourneyDashboard({
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Select Your Vehicle</Text>
               <Text style={styles.sectionSubtitle}>
-                Calibrates sensor vibration floor
+                Each vehicle class is collected and trained separately
               </Text>
             </View>
 
@@ -301,6 +313,70 @@ export function JourneyDashboard({
                 );
               })}
             </View>
+
+            {profile.collectionEligible ? (
+              <>
+                <View style={styles.choiceGroup}>
+                  <Text style={styles.choiceLabel}>Collection mode</Text>
+                  <View style={styles.choiceRow}>
+                    {(['STANDARD', 'CONTROLLED_RESEARCH'] as const).map((mode) => (
+                      <Pressable key={mode} accessibilityRole="button" accessibilityState={{ selected: collectionMode === mode }}
+                        onPress={() => onSelectCollectionMode(mode)} style={[styles.choiceChip, collectionMode === mode && styles.choiceChipActive]}>
+                        <Text style={[styles.choiceChipText, collectionMode === mode && styles.choiceChipTextActive]}>
+                          {mode === 'STANDARD' ? 'Standard features' : 'Authorized research + raw windows'}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  {collectionMode === 'CONTROLLED_RESEARCH' && <Text selectable style={styles.experimentalNote}>Requires administrator authorization for installation {installationId || 'loading…'}. A passenger or research operator may add timestamp markers; the driver must not touch the phone.</Text>}
+                </View>
+                <View style={styles.choiceGroup}>
+                  <Text style={styles.choiceLabel}>Vehicle subtype</Text>
+                  <View style={styles.choiceRow}>
+                    {profile.subtypes.map((subtype) => (
+                      <Pressable
+                        key={subtype}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: vehicleSubtype === subtype }}
+                        onPress={() => onSelectVehicleSubtype(subtype)}
+                        style={[styles.choiceChip, vehicleSubtype === subtype && styles.choiceChipActive]}
+                      >
+                        <Text style={[styles.choiceChipText, vehicleSubtype === subtype && styles.choiceChipTextActive]}>
+                          {humanizeOption(subtype)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+                <View style={styles.choiceGroup}>
+                  <Text style={styles.choiceLabel}>Phone mount</Text>
+                  <View style={styles.choiceRow}>
+                    {profile.mountPositions.map((mount) => (
+                      <Pressable
+                        key={mount}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: mountPosition === mount }}
+                        onPress={() => onSelectMountPosition(mount)}
+                        style={[styles.choiceChip, mountPosition === mount && styles.choiceChipActive]}
+                      >
+                        <Text style={[styles.choiceChipText, mountPosition === mount && styles.choiceChipTextActive]}>
+                          {humanizeOption(mount)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+                {profile.trainingEligibility === 'EXPERIMENTAL_ONLY' && (
+                  <Text style={styles.experimentalNote}>
+                    This vehicle profile collects isolated research data. Classification is not enabled yet.
+                  </Text>
+                )}
+              </>
+            ) : (
+              <Text style={styles.experimentalNote}>
+                Choose a supported vehicle class to collect sensor windows.
+              </Text>
+            )}
           </View>
         )}
 
@@ -308,11 +384,12 @@ export function JourneyDashboard({
         <View style={styles.ctaSection}>
           <Pressable
             onPress={recording ? onStopJourney : onStartJourney}
-            disabled={uploading}
+            disabled={uploading || (!recording && !profile.collectionEligible)}
             style={[
               styles.mainCtaButton,
               recording && styles.stopCtaButton,
               uploading && { opacity: 0.7 },
+              !recording && !profile.collectionEligible && { opacity: 0.45 },
             ]}
           >
             {uploading ? (
@@ -344,7 +421,7 @@ export function JourneyDashboard({
                 style={{ marginRight: 6 }}
               />
               <Text style={styles.pendingText}>
-                {pendingCount} journey{pendingCount === 1 ? '' : 's'} queued for
+                {pendingCount} collection{pendingCount === 1 ? '' : 's'} queued for
                 upload
               </Text>
             </View>
@@ -355,24 +432,12 @@ export function JourneyDashboard({
         {!recording && (
           <View style={styles.instructionsCard}>
             <View style={styles.instructionsHeaderRow}>
-              <Text style={styles.instructionsTitle}>How to Record</Text>
-              <Pressable
-                onPress={() => setRqiInfoOpen(true)}
-                style={styles.rqiPillButton}
-              >
-                <Ionicons
-                  name="speedometer-outline"
-                  size={13}
-                  color={theme.saffronLift}
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={styles.rqiPillText}>RQI Calculator Info</Text>
-              </Pressable>
+              <Text style={styles.instructionsTitle}>How to collect useful data</Text>
             </View>
             <View style={styles.instructionStep}>
               <Text style={styles.stepNum}>1</Text>
               <Text style={styles.stepText}>
-                Mount your phone firmly on a car dashboard or handlebar holder.
+                Select the exact vehicle and use one of its supported fixed mounts.
               </Text>
             </View>
             <View style={styles.instructionStep}>
@@ -384,8 +449,8 @@ export function JourneyDashboard({
             <View style={styles.instructionStep}>
               <Text style={styles.stepNum}>3</Text>
               <Text style={styles.stepText}>
-                Tap End Journey when you arrive. Your trip is scored and
-                uploaded automatically.
+                End the journey when you arrive. BetterRoads uploads neutral
+                sensor windows, not phone-declared potholes.
               </Text>
             </View>
           </View>
@@ -405,7 +470,8 @@ export function JourneyDashboard({
 
           <Text style={styles.footerFootnote}>
             Recording runs while the app is active in the foreground. Road
-            quality data is published anonymously to the BetterRoads public map.
+            collection stays separate from the public map until independent
+            evidence and vehicle-specific models validate it.
           </Text>
 
           {/* Social Channels in Dashboard Footer */}
@@ -431,106 +497,13 @@ export function JourneyDashboard({
           </View>
         </View>
 
-        {/* RQI Road Quality Calculator Modal */}
-        <Modal
-          visible={rqiInfoOpen}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setRqiInfoOpen(false)}
-        >
-          <View style={styles.modalBackdrop}>
-            <SafeAreaView style={styles.modalSheet}>
-              <View style={styles.modalHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={typography.eyebrow}>CALIBRATION & METRICS</Text>
-                  <Text style={styles.modalTitle}>
-                    Road Quality Index (RQI)
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => setRqiInfoOpen(false)}
-                  hitSlop={12}
-                  style={styles.modalCloseButton}
-                >
-                  <Ionicons name="close" size={18} color={theme.ink2} />
-                </Pressable>
-              </View>
-
-              <ScrollView
-                style={{ width: '100%' }}
-                contentContainerStyle={styles.modalContent}
-              >
-                <View style={styles.rqiScoreBreakdown}>
-                  <View
-                    style={[
-                      styles.scoreBadge,
-                      { backgroundColor: 'rgba(27, 122, 67, 0.15)' },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.scoreBadgeNum, { color: theme.green }]}
-                    >
-                      75 - 100
-                    </Text>
-                    <Text style={styles.scoreBadgeLabel}>Smooth / Good</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.scoreBadge,
-                      { backgroundColor: 'rgba(250, 178, 25, 0.15)' },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.scoreBadgeNum, { color: theme.warn }]}
-                    >
-                      45 - 74
-                    </Text>
-                    <Text style={styles.scoreBadgeLabel}>Moderate Roughness</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.scoreBadge,
-                      { backgroundColor: 'rgba(208, 59, 59, 0.15)' },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.scoreBadgeNum, { color: theme.danger }]}
-                    >
-                      0 - 44
-                    </Text>
-                    <Text style={styles.scoreBadgeLabel}>Severe Potholes</Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoCard}>
-                  <Text style={styles.infoCardHeading}>
-                    How RQI is Computed
-                  </Text>
-                  <Text style={styles.infoCardBody}>
-                    BetterRoads samples 3-axis accelerometer and gyroscope
-                    signals at ~50 Hz. It applies a 0.5–10 Hz bandpass filter to
-                    isolate road impacts from vehicle engine baseline.
-                  </Text>
-                  <Text style={styles.infoCardBody}>
-                    Sudden z-axis spikes indicate potholes and speed bumps,
-                    penalizing the segment score. Baseline RMS roughness
-                    accounts for surface deterioration.
-                  </Text>
-                </View>
-
-                <Pressable
-                  style={styles.closeModalButton}
-                  onPress={() => setRqiInfoOpen(false)}
-                >
-                  <Text style={styles.closeModalButtonText}>Got it</Text>
-                </Pressable>
-              </ScrollView>
-            </SafeAreaView>
-          </View>
-        </Modal>
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function humanizeOption(value: string): string {
+  return value.toLowerCase().split('_').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
 const styles = StyleSheet.create({
@@ -711,6 +684,11 @@ const styles = StyleSheet.create({
     color: theme.ink,
     letterSpacing: -0.5,
   },
+  metricStatusValue: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: theme.ink,
+  },
   metricUnit: {
     fontSize: 12,
     fontWeight: '600',
@@ -732,6 +710,23 @@ const styles = StyleSheet.create({
     color: theme.warn,
     lineHeight: 17,
     fontWeight: '500',
+  },
+  markerButton: {
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: theme.saffronDeep,
+    backgroundColor: theme.saffronTint,
+    borderRadius: radii.md,
+    paddingHorizontal: 14,
+  },
+  markerButtonText: {
+    color: theme.saffronLift,
+    fontSize: 13,
+    fontWeight: '800',
   },
   vehicleSection: {
     width: '100%',
@@ -787,6 +782,49 @@ const styles = StyleSheet.create({
   vehicleLabelActive: {
     color: theme.saffronLift,
     fontWeight: '800',
+  },
+  choiceGroup: {
+    gap: 7,
+    paddingTop: 4,
+  },
+  choiceLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.ink2,
+  },
+  choiceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  choiceChip: {
+    borderWidth: 1,
+    borderColor: theme.lineStrong,
+    backgroundColor: theme.bg3,
+    borderRadius: radii.full,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 38,
+    justifyContent: 'center',
+  },
+  choiceChipActive: {
+    borderColor: theme.saffronDeep,
+    backgroundColor: theme.saffronTint,
+  },
+  choiceChipText: {
+    color: theme.ink2,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  choiceChipTextActive: {
+    color: theme.saffronLift,
+    fontWeight: '800',
+  },
+  experimentalNote: {
+    color: theme.warn,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
   },
   ctaSection: {
     gap: 10,

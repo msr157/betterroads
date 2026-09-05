@@ -16,7 +16,7 @@ function queueDir(): Directory {
   return dir;
 }
 
-type PostResult = 'accepted' | 'retry' | 'auth-expired' | 'rejected';
+type PostResult = 'accepted' | 'quarantined' | 'retry' | 'auth-expired' | 'rejected';
 async function post(payload: TravelDataPayload): Promise<PostResult> {
   const token = await getToken();
   if (!token) return 'auth-expired';
@@ -27,12 +27,16 @@ async function post(payload: TravelDataPayload): Promise<PostResult> {
   });
   // Retain rejected payloads. In particular, a 409 may mean the journey ID
   // belongs to another account and must never be reported as uploaded.
-  if (res.status === 400 || res.status === 409) return 'rejected';
+  if (res.status === 400 || res.status === 409 || res.status === 422) return 'rejected';
   if (res.status === 401) { await clearToken(); return 'auth-expired'; }
-  return res.ok ? 'accepted' : 'retry';
+  if (res.ok) {
+    const body = await res.json().catch(() => ({})) as { status?: string };
+    return body.status === 'quarantined' ? 'quarantined' : 'accepted';
+  }
+  return 'retry';
 }
 
-export type UploadResult = 'uploaded' | 'queued' | 'auth-expired' | 'rejected';
+export type UploadResult = 'uploaded' | 'quarantined' | 'queued' | 'auth-expired' | 'rejected';
 
 /** Upload now if possible; otherwise persist for a later flush. */
 export async function uploadOrQueue(payload: TravelDataPayload): Promise<UploadResult> {
@@ -41,6 +45,7 @@ export async function uploadOrQueue(payload: TravelDataPayload): Promise<UploadR
   try {
     result = await post(payload);
     if (result === 'accepted') return 'uploaded';
+    if (result === 'quarantined') return 'quarantined';
   } catch {
     // Offline — fall through to queueing.
   }
@@ -61,7 +66,8 @@ export async function flushQueue(): Promise<number> {
       const queued = 'payload' in parsed ? parsed : null;
       if (!queued || !queued.ownerId || queued.ownerId !== currentUserId) { pending += 1; continue; }
       const payload = queued.payload!;
-      if ((await post(payload)) === 'accepted') {
+      const result = await post(payload);
+      if (result === 'accepted' || result === 'quarantined' || result === 'rejected') {
         entry.delete();
       } else {
         pending += 1;

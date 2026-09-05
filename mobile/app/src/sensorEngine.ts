@@ -53,6 +53,7 @@ export type GpsFix = {
   speedKmh: number;
   altitudeM?: number;
   heading?: number;
+  accuracyM?: number;
 };
 
 export type EngineSnapshot = {
@@ -64,6 +65,7 @@ export type EngineSnapshot = {
   eventCount: number;
   segmentCount: number;
   isStableMount: boolean;
+  motionState?: 'acquiring' | 'stationary' | 'moving' | 'temporary-stop';
 };
 
 export class SensorEngine {
@@ -117,6 +119,11 @@ export class SensorEngine {
     const cutoff = s.t - RMS_WINDOW_MS;
     while (this.window.length > 0 && this.window[0]!.t < cutoff) this.window.shift();
 
+    // Accumulate independently from snapshot polling so the UI cannot affect scoring.
+    const rms = this.calculateWindowRms();
+    this.segmentRmsSum += rms;
+    this.segmentRmsCount += 1;
+
     if (!this.isStableMount) return;
 
     const speedKmh = this.lastFix?.speedKmh ?? 0;
@@ -152,7 +159,7 @@ export class SensorEngine {
 
   /** Current live telemetry for the recording UI. */
   snapshot(): EngineSnapshot {
-    const rms = this.windowRms();
+    const rms = this.calculateWindowRms();
     return {
       liveRms: rms,
       liveSegmentRqi: computeRqi(rms, this.segmentEventCount),
@@ -209,7 +216,7 @@ export class SensorEngine {
 
   private closeSegment(endFix: GpsFix): void {
     const start = this.segmentStartFix ?? endFix;
-    const avgRms = this.segmentRmsCount > 0 ? this.segmentRmsSum / this.segmentRmsCount : this.windowRms();
+    const avgRms = this.segmentRmsCount > 0 ? this.segmentRmsSum / this.segmentRmsCount : this.calculateWindowRms();
 
     this.segments.push({
       segmentIndex: this.segmentIndex,
@@ -217,7 +224,7 @@ export class SensorEngine {
       startLon: start.lon,
       endLat: endFix.lat,
       endLon: endFix.lon,
-      lengthM: SEGMENT_LENGTH_M,
+      lengthM: Math.min(SEGMENT_LENGTH_M, Math.max(0, this.distanceM - this.segmentIndex * SEGMENT_LENGTH_M)),
       rqiScore: computeRqi(avgRms, this.segmentEventCount),
       eventCount: this.segmentEventCount,
       avgRms,
@@ -230,15 +237,10 @@ export class SensorEngine {
     this.segmentEventCount = 0;
   }
 
-  private windowRms(): number {
+  private calculateWindowRms(): number {
     if (this.window.length === 0) return 0;
     const sumSq = this.window.reduce((acc, w) => acc + w.value * w.value, 0);
-    const rms = Math.sqrt(sumSq / this.window.length);
-    // Segment average accumulates on read cadence (UI tick ~1 Hz), matching
-    // the prototype's periodic sampling of live RMS.
-    this.segmentRmsSum += rms;
-    this.segmentRmsCount += 1;
-    return rms;
+    return Math.sqrt(sumSq / this.window.length);
   }
 }
 

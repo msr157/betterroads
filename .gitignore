@@ -11,3 +11,8 @@ dist/
 build/
 coverage/
 *.tar
+
+# local tooling artifacts
+.impeccable/
+.playwright-cli/
+output/

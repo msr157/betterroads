@@ -63,8 +63,12 @@ const ROUTES = [
 ];
 
 const VEHICLES = ['CAR', 'BIKE', 'AUTO_RICKSHAW', 'CAR', 'BIKE'];
-const DAYS = 180;
-const JOURNEYS_PER_DAY = 3; // per route
+const envInt = (name, fallback, max) => {
+  const value = Number(process.env[name] ?? fallback);
+  return Number.isInteger(value) && value >= 1 ? Math.min(max, value) : fallback;
+};
+const DAYS = envInt('SEED_DAYS', 180, 365);
+const JOURNEYS_PER_DAY = envInt('SEED_JOURNEYS_PER_DAY', 3, 20); // per route
 
 // Deterministic-ish PRNG so reruns look similar.
 let seed = 42;
@@ -173,12 +177,33 @@ function buildJourney(route, dayIndex, startMs) {
     },
     segments,
     events,
+    path: pts.map(([lat, lon], index) => [
+      lat,
+      lon,
+      startMs + Math.round((durationS * 1000 * index) / Math.max(1, pts.length - 1)),
+    ]),
   };
 }
 
 const DEVICE_POOL = Array.from({ length: 12 }, () => randomUUID());
 
 async function main() {
+  const authResponse = await fetch(`${API_URL}/api/mobile/auth/guest`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      deviceUuid: DEVICE_POOL[0],
+      platform: 'android',
+      model: 'Demo Seeder',
+      appVersion: '0.0.0-demo',
+    }),
+  });
+  if (!authResponse.ok) {
+    throw new Error(`Could not create demo contributor session (${authResponse.status}): ${await authResponse.text()}`);
+  }
+  const auth = await authResponse.json();
+  if (!auth.token) throw new Error('Demo contributor session did not return a token.');
+
   const endOfWindow = Date.now() - 86_400_000; // through yesterday
   let sent = 0;
   let failed = 0;
@@ -193,6 +218,7 @@ async function main() {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
+            authorization: `Bearer ${auth.token}`,
             // Rotate the forwarded IP so the dev server's per-IP rate limiter
             // (6/min) doesn't throttle the seed run. Works because
             // TRUST_PROXY defaults to trusting this header in dev.

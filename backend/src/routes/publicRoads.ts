@@ -58,10 +58,14 @@ router.get(
                    s.geometry,
                    snap.rqi,
                    snap.sample_count AS "sampleCount",
-                   s.event_count     AS "eventCount"
+                   snap.event_count  AS "eventCount",
+                   snap.day::text    AS "lastEvidenceAt"
             FROM road_segments s
             JOIN LATERAL (
-              SELECT rqi, sample_count
+              SELECT rqi, sample_count, day,
+                     (SELECT coalesce(sum(ss2.event_count), 0)::int
+                      FROM segment_snapshots ss2
+                      WHERE ss2.segment_key = s.segment_key AND ss2.day <= ${at}) AS event_count
               FROM segment_snapshots
               WHERE segment_key = s.segment_key AND day <= ${at}
               ORDER BY day DESC
@@ -79,7 +83,8 @@ router.get(
                    geometry,
                    current_rqi  AS "rqi",
                    sample_count AS "sampleCount",
-                   event_count  AS "eventCount"
+                   event_count  AS "eventCount",
+                   last_updated_at::text AS "lastEvidenceAt"
             FROM road_segments
             WHERE center_lat BETWEEN ${minLat} AND ${maxLat}
               AND center_lon BETWEEN ${minLon} AND ${maxLon}
@@ -117,15 +122,20 @@ router.get(
 
     try {
       const rows = await db.execute(sql`
-        SELECT id, type, severity, occurred_at AS "occurredAt",
-               lat, lon, speed_kmh AS "speedKmh", segment_key AS "segmentKey"
-        FROM road_events
-        WHERE lat BETWEEN ${minLat} AND ${maxLat}
-          AND lon BETWEEN ${minLon} AND ${maxLon}
-          ${from ? sql`AND occurred_at >= ${from}::date` : sql``}
-          ${to ? sql`AND occurred_at < (${to}::date + interval '1 day')` : sql``}
-          ${type ? sql`AND type = ${type.toUpperCase()}` : sql``}
-        ORDER BY occurred_at DESC
+        SELECT e.id, e.type, e.severity, e.occurred_at AS "occurredAt",
+               e.lat, e.lon, e.speed_kmh AS "speedKmh", e.segment_key AS "segmentKey",
+               e.accuracy_m AS "accuracyM", e.location_quality AS "locationQuality",
+               e.pothole_hotspot_id AS "potholeHotspotId"
+        FROM road_events e
+        JOIN journeys j ON j.id = e.journey_id
+        WHERE j.accepted_at IS NOT NULL
+          AND j.quality_status IN ('LEGACY_APPROVED', 'APPROVED')
+          AND e.lat BETWEEN ${minLat} AND ${maxLat}
+          AND e.lon BETWEEN ${minLon} AND ${maxLon}
+          ${from ? sql`AND e.occurred_at >= ${from}::date` : sql``}
+          ${to ? sql`AND e.occurred_at < (${to}::date + interval '1 day')` : sql``}
+          ${type ? sql`AND e.type = ${type.toUpperCase()}` : sql``}
+        ORDER BY e.occurred_at DESC
         LIMIT ${MAX_ROWS}
       `);
 
@@ -137,19 +147,96 @@ router.get(
   },
 );
 
+// ─── GET /hotspots?bbox…[&at=YYYY-MM-DD][&zoom=…] ───────────────────────────
+// Stable pothole signals derived only from accepted automatic POTHOLE events.
+
+router.get(
+  '/hotspots',
+  zValidator('query', z.object({ ...bboxSchema, at: dayString.optional(), zoom: z.coerce.number().min(0).max(24).default(10) })),
+  async (c) => {
+    const { at, zoom, ...requested } = c.req.valid('query');
+    const bbox = clampBboxToIndia(requested);
+    if (!bbox) return c.json({ ok: true, at: at ?? null, aggregate: zoom < 8, hotspots: [], truncated: false }, 200, CACHE);
+    const { minLat, maxLat, minLon, maxLon } = bbox;
+    try {
+      if (zoom < 8) {
+        const rows = await db.execute(sql`
+          WITH accepted AS (
+            SELECT e.* FROM road_events e JOIN journeys j ON j.id=e.journey_id
+            WHERE e.type='POTHOLE' AND e.pothole_hotspot_id IS NOT NULL
+              AND j.accepted_at IS NOT NULL AND j.quality_status IN ('LEGACY_APPROVED','APPROVED')
+              AND e.lat BETWEEN ${minLat} AND ${maxLat} AND e.lon BETWEEN ${minLon} AND ${maxLon}
+              ${at ? sql`AND e.occurred_at < (${at}::date + interval '1 day')` : sql``}
+          ), hotspot_rollup AS (
+            SELECT pothole_hotspot_id, min(lat) lat, min(lon) lon, count(*)::int detections,
+                   count(DISTINCT journey_id)::int journeys, min(occurred_at) first_at, max(occurred_at) last_at,
+                   avg(severity) avg_severity, max(severity) max_severity, max(accuracy_m) accuracy_m
+            FROM accepted GROUP BY pothole_hotspot_id
+          )
+          SELECT ('region:' || floor(lat)::text || ':' || floor(lon)::text) AS id,
+                 avg(lat)::float AS lat, avg(lon)::float AS lon,
+                 count(*)::int AS "aggregateCount", sum(detections)::int AS "detectionCount",
+                 sum(journeys)::int AS "distinctJourneyCount", min(first_at)::text AS "firstDetectedAt",
+                 max(last_at)::text AS "lastDetectedAt", avg(avg_severity)::float AS "averageSeverity",
+                 max(max_severity)::float AS "maximumSeverity", max(accuracy_m)::float AS "accuracyM",
+                 'regional' AS confidence
+          FROM hotspot_rollup GROUP BY floor(lat), floor(lon)
+          ORDER BY count(*) DESC LIMIT ${MAX_ROWS}
+        `);
+        return c.json({ ok: true, at: at ?? null, aggregate: true, hotspots: rows, truncated: rows.length === MAX_ROWS }, 200, CACHE);
+      }
+      const rows = await db.execute(sql`
+        SELECT ph.id, ph.center_lat AS lat, ph.center_lon AS lon,
+               count(e.id)::int AS "detectionCount", count(DISTINCT e.journey_id)::int AS "distinctJourneyCount",
+               min(e.occurred_at)::text AS "firstDetectedAt", max(e.occurred_at)::text AS "lastDetectedAt",
+               avg(e.severity)::float AS "averageSeverity", max(e.severity)::float AS "maximumSeverity",
+               max(e.accuracy_m)::float AS "accuracyM",
+               CASE WHEN count(DISTINCT e.journey_id) >= 2 THEN 'repeated' ELSE 'possible' END AS confidence
+        FROM pothole_hotspots ph JOIN road_events e ON e.pothole_hotspot_id=ph.id
+        JOIN journeys j ON j.id=e.journey_id
+        WHERE e.type='POTHOLE' AND j.accepted_at IS NOT NULL AND j.quality_status IN ('LEGACY_APPROVED','APPROVED')
+          AND ph.center_lat BETWEEN ${minLat} AND ${maxLat} AND ph.center_lon BETWEEN ${minLon} AND ${maxLon}
+          ${at ? sql`AND e.occurred_at < (${at}::date + interval '1 day')` : sql``}
+        GROUP BY ph.id, ph.center_lat, ph.center_lon
+        ORDER BY max(e.occurred_at) DESC LIMIT ${MAX_ROWS}
+      `);
+      return c.json({ ok: true, at: at ?? null, aggregate: false, hotspots: rows, truncated: rows.length === MAX_ROWS }, 200, CACHE);
+    } catch (err) {
+      console.error('[public/hotspots] query error:', err);
+      return c.json({ ok: false, error: 'Failed to load pothole signals.' }, 500);
+    }
+  },
+);
+
 // ─── GET /timeline ────────────────────────────────────────────────────────────
 // Bounds + per-day aggregates for the slider (range, tick marks, sparkline).
 
 router.get('/timeline', async (c) => {
   try {
     const rows = (await db.execute(sql`
-      SELECT day::text AS day,
-             count(*)::int          AS "segmentsUpdated",
-             round(avg(rqi))::int   AS "avgRqi",
-             sum(event_count)::int  AS "eventCount"
-      FROM segment_snapshots
-      GROUP BY day
-      ORDER BY day ASC
+      WITH snapshot_changes AS (
+        SELECT day, segment_key, rqi,
+               lag(rqi) OVER (PARTITION BY segment_key ORDER BY day) previous_rqi,
+               row_number() OVER (PARTITION BY segment_key ORDER BY day) sequence
+        FROM segment_snapshots
+      ), roads_by_day AS (
+        SELECT day, count(*)::int AS segments_updated,
+               count(*) FILTER (WHERE sequence=1)::int AS sections_new,
+               count(*) FILTER (WHERE previous_rqi IS NOT NULL AND round(previous_rqi) <> round(rqi))::int AS condition_changes,
+               round(avg(rqi))::int AS avg_rqi
+        FROM snapshot_changes GROUP BY day
+      ), potholes_by_day AS (
+        SELECT e.occurred_at::date day, count(*)::int pothole_signals
+        FROM road_events e JOIN journeys j ON j.id=e.journey_id
+        WHERE e.type='POTHOLE' AND j.accepted_at IS NOT NULL AND j.quality_status IN ('LEGACY_APPROVED','APPROVED')
+        GROUP BY e.occurred_at::date
+      ), all_days AS (SELECT day FROM roads_by_day UNION SELECT day FROM potholes_by_day)
+      SELECT d.day::text day, coalesce(r.segments_updated,0)::int AS "segmentsUpdated",
+             coalesce(r.sections_new,0)::int AS "sectionsNew", coalesce(r.condition_changes,0)::int AS "conditionChanges",
+             r.avg_rqi AS "avgRqi", coalesce(p.pothole_signals,0)::int AS "potholeSignals",
+             coalesce(p.pothole_signals,0)::int AS "eventCount"
+      FROM all_days d LEFT JOIN roads_by_day r USING(day) LEFT JOIN potholes_by_day p USING(day)
+      ORDER BY d.day ASC
     `)) as unknown as Array<{ day: string }>;
 
     return c.json(
@@ -176,11 +263,11 @@ router.get('/stats', async (c) => {
   try {
     const rows = (await db.execute(sql`
       SELECT (SELECT count(*) FROM road_segments)::int              AS "segments",
-             (SELECT count(*) FROM road_events)::int                AS "events",
-             (SELECT count(*) FROM journeys)::int                   AS "journeys",
+             (SELECT count(*) FROM road_events e JOIN journeys j ON j.id=e.journey_id WHERE j.accepted_at IS NOT NULL AND j.quality_status IN ('LEGACY_APPROVED', 'APPROVED'))::int AS "events",
+             (SELECT count(*) FROM journeys WHERE accepted_at IS NOT NULL AND quality_status IN ('LEGACY_APPROVED', 'APPROVED'))::int AS "journeys",
              (SELECT count(DISTINCT day) FROM segment_snapshots)::int AS "daysOfData",
              (SELECT round(avg(current_rqi))::int FROM road_segments) AS "avgRqi",
-             (SELECT coalesce(round(sum(distance_m) / 1000)::int, 0) FROM journeys)
+             (SELECT coalesce(round(sum(distance_m) / 1000)::int, 0) FROM journeys WHERE accepted_at IS NOT NULL AND quality_status IN ('LEGACY_APPROVED', 'APPROVED'))
                                                                     AS "kmRidden",
              (SELECT max(last_updated_at) FROM road_segments)::text AS "lastUpdatedAt"
     `)) as unknown as Array<Record<string, unknown>>;

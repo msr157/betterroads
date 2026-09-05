@@ -1,73 +1,167 @@
-/**
- * Travel-data contract, schemaVersion 1.
- * Mirror of docs/api-contracts/traveldata.md and the backend Zod schema in
- * backend/src/routes/traveldata.ts — keep the three in lockstep.
- */
-
 export type VehicleType = 'CAR' | 'BIKE' | 'AUTO_RICKSHAW' | 'BUS' | 'TRUCK' | 'OTHER';
+export type VehicleClass = VehicleType;
+export type CollectionMode = 'STANDARD' | 'CONTROLLED_RESEARCH';
+export type WindowKind = 'CANDIDATE' | 'RANDOM_NORMAL' | 'CALIBRATION' | 'MANUAL_MARKER' | 'ARTIFACT';
 
-export type RoadEventType = 'POTHOLE' | 'BUMP' | 'SPEED_BREAKER' | 'SWERVE' | 'MANUAL_REPORT';
-
-export type JourneySegment = {
-  segmentIndex: number;
-  startLat: number;
-  startLon: number;
-  endLat: number;
-  endLon: number;
-  lengthM: number;
-  /** 0–100 as scored on-device. */
-  rqiScore: number;
-  eventCount: number;
-  /** m/s² windowed RMS after the vehicle floor is subtracted. */
-  avgRms: number;
-};
-
-export type RoadEvent = {
-  id: string;
-  type: RoadEventType;
-  /** 0.0–1.0. */
-  severity: number;
-  /** Epoch ms. */
+export type LocationPoint = {
   timestamp: number;
   lat: number;
   lon: number;
-  altitudeM?: number;
+  accuracyM: number;
   speedKmh?: number;
-  accelX?: number;
-  accelY?: number;
-  accelZ?: number;
-  gyroZ?: number;
-  heading?: number;
+  headingDeg?: number;
+  altitudeM?: number;
 };
 
-export type TravelDataPayload = {
-  schemaVersion: 1;
+export type DistributionFeatures = {
+  min: number;
+  max: number;
+  mean: number;
+  standardDeviation: number;
+  rms: number;
+  peakToPeak: number;
+  median: number;
+  mad: number;
+  p05: number;
+  p25: number;
+  p75: number;
+  p95: number;
+  crestFactor: number;
+  zeroCrossings: number;
+};
+
+export type FeatureVectorV1 = {
+  vertical: DistributionFeatures;
+  horizontal: DistributionFeatures;
+  dynamicMagnitude: DistributionFeatures;
+  jerk: DistributionFeatures;
+  gyroMagnitude: DistributionFeatures;
+  frequency: {
+    energy2To5Hz: number;
+    energy5To10Hz: number;
+    energy10To20Hz: number;
+    dominantFrequencyHz: number;
+    spectralEntropy: number;
+  };
+  context: {
+    durationMs: number;
+    speedKmh?: number;
+    headingChangeDeg?: number;
+    movementState: 'moving';
+    mountStableRatio: number;
+    accelerometerSampleCount: number;
+    gyroscopeSampleCount: number;
+    accelerometerMissingRatio: number;
+    gyroscopeMissingRatio: number;
+  };
+};
+
+export type FeatureWindowV1 = {
+  windowId: string;
+  encounterId: string;
+  kind: WindowKind;
+  startedAt: number;
+  triggerAt?: number;
+  endedAt: number;
+  triggerReasons: string[];
+  triggerMeasurements?: Record<string, number>;
+  location?: LocationPoint & {
+    quality: 'INTERPOLATED' | 'NEAREST' | 'UNUSABLE';
+    bracketGapMs: number;
+  };
+  featureVersion: 'features-v1';
+  features: FeatureVectorV1;
+};
+
+export type RawObjectManifest = {
+  objectId: string;
+  windowId: string;
+  byteSize: number;
+  sha256: string;
+  contentType: 'application/json';
+  contentEncoding: 'gzip';
+  formatVersion: 1;
+};
+
+export type CollectionMarkerV1 = {
+  markerId: string;
+  markedAt: number;
+  markerType: 'PASSENGER_ROAD_FEATURE' | 'KNOWN_NORMAL_SECTION' | 'HANDLING_ARTIFACT';
+  location?: LocationPoint;
+};
+
+export type CollectionSessionV3 = {
+  schemaVersion: 3;
+  sessionId: string;
   device: {
-    /** Install-time UUID — see deviceId.ts. Never a MAC address. */
     uuid: string;
     platform: 'android' | 'ios';
     model?: string;
-    appVersion?: string;
+    osVersion?: string;
+    appVersion: string;
   };
-  journey: {
-    /** Client-minted UUID; the server's idempotency key for retries. */
-    id: string;
+  collection: {
+    mode: CollectionMode;
+    vehicleClass: VehicleClass;
+    vehicleSubtype: string;
+    vehicleMetadata: Record<string, string | number | boolean | null>;
+    mountPosition: string;
+    profileVersion: string;
+    featureVersion: 'features-v1';
+    triggerVersion: string;
+    motionAlgorithmVersion: string;
+    consentVersion: string;
+  };
+  timing: {
     startedAt: number;
     endedAt: number;
-    distanceM: number;
-    durationS: number;
-    avgSpeedKmh: number;
-    vehicleType: VehicleType;
-    phoneMountPosition?: string;
-    baseFloorRms?: number;
-    rqiScore: number;
-    startLat: number;
-    startLon: number;
-    endLat: number;
-    endLon: number;
+    movingDurationMs: number;
+    stationaryDurationMs: number;
+    sensorEpochOffsetMs: number;
+    estimatedClockDriftPpm: number;
   };
-  segments: JourneySegment[];
-  events: RoadEvent[];
-  /** Downsampled GPS trace: [lat, lon, epochMs]. */
-  path?: [number, number, number][];
+  journey: {
+    acceptedDistanceM: number;
+    averageMovingSpeedKmh: number;
+    start: LocationPoint;
+    end: LocationPoint;
+  };
+  quality: {
+    accelerometerSampleCount: number;
+    gyroscopeSampleCount: number;
+    effectiveAccelHz: number;
+    effectiveGyroHz: number;
+    accelMissingRatio: number;
+    gyroMissingRatio: number;
+    reliableFixCount: number;
+    rejectedFixCount: number;
+    meanAccuracyM: number;
+    mountStableRatio: number;
+    candidateCount: number;
+    suppressedCandidateCount: number;
+    normalWindowCount: number;
+    reasons: string[];
+  };
+  locationSamples: LocationPoint[];
+  featureWindows: FeatureWindowV1[];
+  rawObjects: RawObjectManifest[];
+  markers: CollectionMarkerV1[];
 };
+
+export type CollectionIngestionStatus = 'received' | 'quarantined' | 'duplicate';
+
+export type CollectionCompleteResponse = {
+  ok: true;
+  status: CollectionIngestionStatus;
+  sessionId: string;
+  quarantineReasons?: string[];
+};
+
+export type {
+  JourneySegment,
+  RoadEvent,
+  RoadEventType,
+  TravelDataPayload,
+  TravelDataV1,
+  TravelDataV2,
+} from './legacyTravelData';

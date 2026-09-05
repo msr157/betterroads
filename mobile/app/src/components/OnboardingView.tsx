@@ -14,7 +14,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { radii, theme } from '@/theme';
 import { FlagRule } from '@/components/FlagRule';
 import { ArrowNextButton } from '@/components/ArrowNextButton';

@@ -66,7 +66,7 @@ Used across the top header bar, onboarding banners, and section dividers to unif
 - **Interactive SVG Circular Next Arrow (`src/components/ArrowNextButton.tsx`)**:
   - Precision 68x68 SVG progress ring with saffron stroke (`#ff9933`), white interior disc, and dark directional glyph.
 - **High-Contrast Modal Picker (`src/components/SearchModalPicker.tsx`)**:
-  - Dark-themed bottom sheet with real-time fuzzy search across all 36 Indian States/UTs and thousands of cities (via `country-state-city`).
+  - Dark-themed bottom sheet with real-time fuzzy search across all 36 Indian States/UTs and thousands of cities from the checked-in India-only dataset.
 
 ---
 

@@ -1,647 +1,75 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AttributionControl,
-  Map as MaplibreMap,
-  NavigationControl,
-  Popup,
-  setWorkerUrl,
-} from 'maplibre-gl';
-import type { ExpressionSpecification, GeoJSONSource, MapLayerMouseEvent } from 'maplibre-gl';
+import type { FormEvent } from 'react';
+import { AttributionControl, Map as MlMap, NavigationControl, Popup, setWorkerUrl } from 'maplibre-gl';
+import type { GeoJSONSource, MapLayerMouseEvent } from 'maplibre-gl';
+import type { FeatureCollection, Polygon } from 'geojson';
 import 'maplibre-gl/dist/maplibre-gl.css';
-// Vite's dep-optimizer breaks maplibre's own worker bundle (GeoJSON sources
-// never finish loading, so nothing paints). `?worker&url` makes Vite bundle
-// the worker entry properly in both dev and prod; setWorkerUrl points
-// maplibre at it. See maplibre-gl-js#7339.
-import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-
-setWorkerUrl(maplibreWorkerUrl);
-import type { FeatureCollection } from 'geojson';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { SITE } from '@/lib/constants';
-import TimelineBar from '@/components/map/TimelineBar';
-import MapLegend from '@/components/map/MapLegend';
-import {
-  addDays,
-  dayRange,
-  fetchEvents,
-  fetchRoads,
-  fetchStats,
-  fetchTimeline,
-  fetchLeaderboard,
-  fetchContracts,
-  formatDay,
-} from '@/components/map/api';
-import type { Contributor, PublicContract, PublicStats, RoadEvent, RoadSegment, TimelineData } from '@/components/map/api';
-import {
-  EVENT_COLOR,
-  EVENT_TYPE_LABELS,
-  rqiColorExpression,
-  rqiLabel,
-} from '@/components/map/rqiScale';
+import TimelineBar from './TimelineBar';
+import { dayRange, fetchContracts, fetchEvents, fetchHotspots, fetchLeaderboard, fetchRoads, fetchStats, fetchTimeline, searchIndiaPlaces } from './api';
+import type { Bbox, Contributor, IndiaPlace, PotholeHotspot, PublicContract, PublicStats, RoadEvent, RoadSegment, TimelineData } from './api';
+import './map-page.css';
 
-// India-only map. [lon, lat] — MapLibre order. The default view frames the
-// whole country; maxBounds stops panning away from it (with margin so
-// border cities and the islands aren't clipped against the edge).
-const DEFAULT_CENTER: [number, number] = [79.5, 22.3];
-const DEFAULT_ZOOM = 4.2;
-const INDIA_MAX_BOUNDS: [[number, number], [number, number]] = [
-  [61.0, 1.0], // SW [lon, lat]
-  [104.0, 40.5], // NE
-];
-const MIN_ZOOM = 3.6;
-/** Events shown alongside a day: the trailing 30-day window ending that day. */
-const EVENT_WINDOW_DAYS = 30;
-/** Debounce for refetches while scrubbing the timeline / panning the map. */
-const FETCH_DEBOUNCE_MS = 250;
+setWorkerUrl(workerUrl);
+const INDIA: Bbox = { minLat: 6.2, maxLat: 37.2, minLon: 67.2, maxLon: 97.5 };
+const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
+type Panel = 'overview' | 'people' | 'work';
+type Layer = 'roads' | 'potholes' | 'coverage' | 'otherEvents' | 'contracts';
+const eventNames: Record<string, string> = { BUMP: 'Strong bump', SPEED_BREAKER: 'Speed breaker', SWERVE: 'Sudden swerve', MANUAL_REPORT: 'Manual road report' };
+const validRoad = (s: RoadSegment) => s.geometry.length > 1 && s.geometry.some((p) => p[0] !== s.geometry[0][0] || p[1] !== s.geometry[0][1]);
+const roadsGeo = (xs: RoadSegment[]): FeatureCollection => ({ type: 'FeatureCollection', features: xs.filter(validRoad).map((s) => ({ type: 'Feature', properties: { ...s, geometry: undefined }, geometry: { type: 'LineString', coordinates: s.geometry.map(([a, b]) => [b, a]) } })) });
+const eventsGeo = (xs: RoadEvent[]): FeatureCollection => ({ type: 'FeatureCollection', features: xs.filter((e) => e.type !== 'POTHOLE').map((e) => ({ type: 'Feature', properties: e, geometry: { type: 'Point', coordinates: [e.lon, e.lat] } })) });
+const hotspotsGeo = (xs: PotholeHotspot[]): FeatureCollection => ({ type: 'FeatureCollection', features: xs.map((h) => ({ type: 'Feature', properties: { ...h, badgeCount: h.aggregateCount ?? h.detectionCount }, geometry: { type: 'Point', coordinates: [h.lon, h.lat] } })) });
+const contractsGeo = (xs: PublicContract[], at?: string): FeatureCollection => ({ type: 'FeatureCollection', features: xs.filter((x) => x.geometry && (!at || !x.publishedAt || x.publishedAt.slice(0, 10) <= at)).map((x) => ({ type: 'Feature', properties: { id: x.id, roadName: x.roadName }, geometry: x.geometry! })) });
+function coverageGeo(xs: RoadSegment[]): FeatureCollection { const cells = new Map<string, RoadSegment[]>(); xs.filter(validRoad).forEach((s) => { const a = Math.floor(s.centerLat * 4) / 4, b = Math.floor(s.centerLon * 4) / 4, key = `${a}:${b}`; cells.set(key, [...(cells.get(key) ?? []), s]); }); return { type: 'FeatureCollection', features: [...cells].map(([key, value]) => { const [a, b] = key.split(':').map(Number); return { type: 'Feature', properties: { count: value.length, minLat: a, maxLat: a + .25, minLon: b, maxLon: b + .25 }, geometry: { type: 'Point', coordinates: [value.reduce((n, x) => n + x.centerLon, 0) / value.length, value.reduce((n, x) => n + x.centerLat, 0) / value.length] } }; }) }; }
+const placeName = (p: IndiaPlace) => p.address?.city ?? p.address?.town ?? p.address?.municipality ?? p.address?.village ?? p.display_name.split(',')[0];
+const placeBox = (p: IndiaPlace): Bbox => ({ minLat: +p.boundingbox[0], maxLat: +p.boundingbox[1], minLon: +p.boundingbox[2], maxLon: +p.boundingbox[3] });
+const mapBox = (m: MlMap): Bbox => { const b = m.getBounds(); return { minLat: b.getSouth(), maxLat: b.getNorth(), minLon: b.getWest(), maxLon: b.getEast() }; };
+const date = (v?: string | null) => !v ? 'Not recorded' : new Date(v.length === 10 ? `${v}T00:00:00` : v).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+const scoreWord = (n: number) => n >= 75 ? 'Good' : n >= 45 ? 'Needs attention' : 'Poor';
+const impactWord = (n: number) => n >= .67 ? 'High' : n >= .34 ? 'Medium' : 'Low';
+function popupRows(titleText: string, note: string, rows: [string, string][], technical: [string, string][] = []) { const root = document.createElement('div'); root.className = 'br-popup'; const title = document.createElement('h3'); title.textContent = titleText; root.append(title); const lead = document.createElement('p'); lead.className = 'br-popup-note'; lead.textContent = note; root.append(lead); const add = (parent: HTMLElement, [label, value]: [string, string]) => { const p = document.createElement('p'), b = document.createElement('strong'); b.textContent = `${label}: `; p.append(b, value); parent.append(p); }; rows.forEach((row) => add(root, row)); if (technical.length) { const details = document.createElement('details'), summary = document.createElement('summary'); summary.textContent = 'Technical details'; details.append(summary); technical.forEach((row) => add(details, row)); root.append(details); } return root; }
+function makePin(fill: string) { const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 80; const ctx = canvas.getContext('2d')!; ctx.scale(2, 2); ctx.beginPath(); ctx.moveTo(16, 39); ctx.bezierCurveTo(13, 32, 3, 24, 3, 15); ctx.arc(16, 15, 13, Math.PI, 0); ctx.bezierCurveTo(29, 24, 19, 32, 16, 39); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#751d1d'; ctx.stroke(); ctx.beginPath(); ctx.arc(16, 15, 8.5, 0, Math.PI * 2); ctx.fillStyle = '#fff8ee'; ctx.fill(); ctx.beginPath(); ctx.moveTo(10, 18); ctx.lineTo(13, 15); ctx.lineTo(11.5, 12); ctx.moveTo(13, 15); ctx.lineTo(17, 13); ctx.lineTo(20.5, 9.5); ctx.moveTo(17, 13); ctx.lineTo(20, 17); ctx.lineTo(22, 18.5); ctx.moveTo(17, 13); ctx.lineTo(15.5, 9); ctx.strokeStyle = '#6f1f1d'; ctx.lineWidth = 1.35; ctx.lineCap = 'round'; ctx.stroke(); return ctx.getImageData(0, 0, 64, 80); }
+function accuracyCircle(lon: number, lat: number, radiusM: number): FeatureCollection<Polygon> { const points: [number, number][] = []; for (let i = 0; i <= 48; i++) { const angle = i / 48 * Math.PI * 2; points.push([lon + Math.cos(angle) * radiusM / (111_320 * Math.cos(lat * Math.PI / 180)), lat + Math.sin(angle) * radiusM / 110_540]); } return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [points] } }] }; }
+function Icon({ name }: { name: 'search' | 'layers' | 'data' | 'close' | 'back' }) { const paths = { search: <><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></>, layers: <><path d="m4 8 8-4 8 4-8 4-8-4Z"/><path d="m4 12 8 4 8-4M4 16l8 4 8-4"/></>, data: <path d="M5 19V9M12 19V5M19 19v-7"/>, close: <path d="m6 6 12 12M18 6 6 18"/>, back: <path d="m15 18-6-6 6-6"/> }; return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>; }
 
-const EMPTY_FC: FeatureCollection = { type: 'FeatureCollection', features: [] };
-
-function contractsToGeoJSON(contracts: PublicContract[]): FeatureCollection {
-  return { type: 'FeatureCollection', features: contracts.filter((c) => c.geometry).map((c) => ({ type: 'Feature', properties: { id: c.id, roadName: c.roadName, contractorName: c.contractorName, status: c.status }, geometry: c.geometry! })) };
-}
-
-/* ── GeoJSON adapters (API sends [lat, lon]; GeoJSON wants [lon, lat]) ── */
-
-function roadsToGeoJSON(segments: RoadSegment[]): FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: segments.map((s) => ({
-      type: 'Feature',
-      properties: { rqi: s.rqi, sampleCount: s.sampleCount, centerLat: s.centerLat, centerLon: s.centerLon },
-      geometry: {
-        type: 'LineString',
-        coordinates: s.geometry.map(([lat, lon]) => [lon, lat]),
-      },
-    })),
-  };
-}
-
-function eventsToGeoJSON(events: RoadEvent[]): FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: events.map((e) => ({
-      type: 'Feature',
-      properties: { type: e.type, severity: e.severity, occurredAt: e.occurredAt },
-      geometry: { type: 'Point', coordinates: [e.lon, e.lat] },
-    })),
-  };
-}
-
-/* ── Popup content — built with textContent (API strings stay untrusted) ── */
-
-function eventPopupContent(type: string, severity: number, occurredAt: string): HTMLElement {
-  const root = document.createElement('div');
-  const title = document.createElement('p');
-  title.className = 'font-display text-sm font-bold tracking-tight text-ink';
-  title.textContent = EVENT_TYPE_LABELS[type] ?? type;
-  const sev = document.createElement('p');
-  sev.className = 'mt-1 text-xs text-ink-2';
-  const sevValue = document.createElement('strong');
-  sevValue.className = 'font-semibold text-ink';
-  sevValue.textContent = `${Math.round(severity * 100)}%`;
-  sev.append(sevValue, ' severity');
-  const when = document.createElement('p');
-  when.className = 'mt-0.5 text-xs text-ink-3';
-  when.textContent = new Date(occurredAt).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-  root.append(title, sev, when);
-  return root;
-}
-
-function roadPopupContent(rqi: number, sampleCount: number, nearbyContracts: PublicContract[]): HTMLElement {
-  const root = document.createElement('div');
-  const title = document.createElement('p');
-  title.className = 'font-display text-sm font-bold tracking-tight text-ink';
-  title.textContent = `RQI ${Math.round(rqi)} · ${rqiLabel(rqi)}`;
-  const meta = document.createElement('p');
-  meta.className = 'mt-0.5 text-xs text-ink-3';
-  meta.textContent = `from ${sampleCount} ride sample${sampleCount === 1 ? '' : 's'}`;
-  root.append(title, meta);
-  if (nearbyContracts.length > 0) {
-    const heading = document.createElement('p'); heading.className = 'mt-2 text-xs font-bold text-ink'; heading.textContent = 'Published accountability records'; root.append(heading);
-    for (const contract of nearbyContracts.slice(0, 3)) {
-      const item = document.createElement('p'); item.className = 'mt-1 text-xs text-ink-2'; item.textContent = `${contract.roadName} · ${contract.contractorName} · ${contract.status}`; root.append(item);
-    }
-  }
-  return root;
-}
-
-function geometryCoordinates(geometry: GeoJSON.Geometry | null): [number, number][] {
-  if (!geometry) return [];
-  const out: [number, number][] = [];
-  const walk = (value: unknown) => { if (Array.isArray(value) && value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') out.push([value[0], value[1]]); else if (Array.isArray(value)) value.forEach(walk); };
-  walk((geometry as GeoJSON.Geometry & { coordinates?: unknown }).coordinates);
-  return out;
-}
-
-function contractsNear(lat: number, lon: number, contracts: PublicContract[]): PublicContract[] {
-  return contracts.filter((contract) => geometryCoordinates(contract.geometry).some(([x, y]) => Math.hypot((x - lon) * Math.cos(lat * Math.PI / 180), y - lat) < 0.01));
-}
-
-/**
- * /map — the public road-quality map. Full-viewport MapLibre canvas over OSM
- * raster tiles, road segments colored by RQI, event markers, and a draggable
- * timeline that replays how the same roads scored on any past day.
- */
 export default function MapPage() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<MaplibreMap | null>(null);
-  const popupRef = useRef<Popup | null>(null);
-  const contractsRef = useRef<PublicContract[]>([]);
-  const abortRef = useRef<AbortController | null>(null);
-  const debounceRef = useRef<number | undefined>(undefined);
-  // Mirrors for the fetch path, so map event handlers never close over stale state.
-  const daysRef = useRef<string[]>([]);
-  const indexRef = useRef(0);
-
-  const [mapReady, setMapReady] = useState(false);
-  const [timeline, setTimeline] = useState<TimelineData | null>(null);
-  const [timelineFailed, setTimelineFailed] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [updating, setUpdating] = useState(false);
-  const [stats, setStats] = useState<PublicStats | null>(null);
-  const [panel, setPanel] = useState<'network' | 'contributors' | 'contracts'>('network');
-  const [panelExpanded, setPanelExpanded] = useState(typeof window !== 'undefined' ? window.innerWidth >= 640 : true);
-  const [mobileView, setMobileView] = useState<'none' | 'legend' | 'panel'>('none');
-  const [period, setPeriod] = useState<'monthly' | 'lifetime'>('monthly');
-  const [contributors, setContributors] = useState<Contributor[]>([]);
-  const [contracts, setContracts] = useState<PublicContract[]>([]);
+  const node = useRef<HTMLDivElement>(null), map = useRef<MlMap | null>(null), dataAbort = useRef<AbortController | null>(null), searchAbort = useRef<AbortController | null>(null), timer = useRef<number | undefined>(undefined), skipMove = useRef(false), scope = useRef<'india' | 'local'>('india'), selectedDay = useRef<string | undefined>(undefined), contractsRef = useRef<PublicContract[]>([]);
+  const [ready, setReady] = useState(false), [local, setLocal] = useState(false), [place, setPlace] = useState<IndiaPlace | null>(null), [query, setQuery] = useState(''), [results, setResults] = useState<IndiaPlace[]>([]), [searching, setSearching] = useState(false), [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false), [resolved, setResolved] = useState(false), [regionError, setRegionError] = useState(false), [roadCount, setRoadCount] = useState<number | null>(null), [lowRoadCount, setLowRoadCount] = useState(0), [hotspots, setHotspots] = useState<PotholeHotspot[]>([]), [eventCount, setEventCount] = useState(0), [truncated, setTruncated] = useState(false);
+  const [stats, setStats] = useState<PublicStats | null>(null), [timeline, setTimeline] = useState<TimelineData | null>(null), [dayIndex, setDayIndex] = useState(0), [people, setPeople] = useState<Contributor[]>([]), [period, setPeriod] = useState<'monthly' | 'lifetime'>('monthly'), [contracts, setContracts] = useState<PublicContract[]>([]), [errors, setErrors] = useState({ overview: false, people: false, work: false }), [panel, setPanel] = useState<Panel | null>(null), [layerOpen, setLayerOpen] = useState(false), [layers, setLayers] = useState<Record<Layer, boolean>>({ roads: true, potholes: true, coverage: false, otherEvents: false, contracts: false });
   contractsRef.current = contracts;
-
-  // Full calendar range + per-day activity for the timeline sparkline.
-  const days = useMemo(
-    () =>
-      timeline?.earliest && timeline.latest
-        ? dayRange(timeline.earliest, timeline.latest)
-        : [],
-    [timeline],
-  );
-  const activity = useMemo(() => {
-    const byDay = new Map(timeline?.days.map((d) => [d.day, d.segmentsUpdated]) ?? []);
-    return days.map((d) => byDay.get(d) ?? 0);
-  }, [timeline, days]);
-  daysRef.current = days;
-
-  /** Fetch roads + events for the current bbox and selected day. */
-  const loadData = useCallback(async () => {
-    const map = mapRef.current;
-    const allDays = daysRef.current;
-    if (!map || allDays.length === 0) return;
-
-    const b = map.getBounds();
-    const bbox = {
-      minLat: b.getSouth(),
-      maxLat: b.getNorth(),
-      minLon: b.getWest(),
-      maxLon: b.getEast(),
-    };
-    const i = Math.min(indexRef.current, allDays.length - 1);
-    const day = allDays[i];
-    const isLatest = i === allDays.length - 1;
-
-    abortRef.current?.abort();
-    const ac = new AbortController();
-    abortRef.current = ac;
-    setUpdating(true);
-    try {
-      // At the newest position `at` is omitted → the segments' current state.
-      const [segments, events] = await Promise.all([
-        fetchRoads(bbox, isLatest ? undefined : day, ac.signal),
-        fetchEvents(bbox, addDays(day, -(EVENT_WINDOW_DAYS - 1)), day, ac.signal),
-      ]);
-      (map.getSource('roads') as GeoJSONSource | undefined)?.setData(roadsToGeoJSON(segments));
-      (map.getSource('events') as GeoJSONSource | undefined)?.setData(eventsToGeoJSON(events));
-      setUpdating(false);
-    } catch (err) {
-      // Aborted = superseded by a newer request, which will clear the chip.
-      if ((err as Error).name !== 'AbortError') setUpdating(false);
-    }
-  }, []);
-
-  /** Debounced loadData — shared by map panning and timeline scrubbing. */
-  const scheduleLoad = useCallback(
-    (delayMs = FETCH_DEBOUNCE_MS) => {
-      window.clearTimeout(debounceRef.current);
-      debounceRef.current = window.setTimeout(() => void loadData(), delayMs);
-    },
-    [loadData],
-  );
-
-  /* ── Map bootstrap (once) ───────────────────────────────────────────── */
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const map = new MaplibreMap({
-      container: containerRef.current,
-      center: DEFAULT_CENTER,
-      zoom: DEFAULT_ZOOM,
-      minZoom: MIN_ZOOM,
-      maxBounds: INDIA_MAX_BOUNDS,
-      attributionControl: false,
-      style: {
-        version: 8,
-        sources: {
-          carto_base: {
-            type: 'raster',
-            tiles: ['https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            maxzoom: 19,
-            attribution: '© OpenStreetMap contributors, © CARTO',
-          },
-          india_boundary: {
-            type: 'geojson',
-            data: '/india-simplified.geojson',
-          },
-          carto_labels: {
-            type: 'raster',
-            tiles: ['https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            maxzoom: 19,
-          },
-        },
-        layers: [
-          { id: 'carto-base', type: 'raster', source: 'carto_base' },
-          { 
-            id: 'india-boundary-casing',
-            type: 'line',
-            source: 'india_boundary',
-            paint: {
-              'line-color': '#f5f5f4',
-              'line-width': 4
-            }
-          },
-          { 
-            id: 'india-boundary',
-            type: 'line',
-            source: 'india_boundary',
-            paint: {
-              'line-color': '#d6d3ce',
-              'line-width': 1.5,
-            }
-          },
-          { id: 'carto-labels', type: 'raster', source: 'carto_labels' }
-        ],
-      },
-    });
-    mapRef.current = map;
-    if (import.meta.env.DEV) {
-      // Debug handle + surfaced style errors (maplibre swallows them otherwise).
-      (window as unknown as { __brMap?: MaplibreMap }).__brMap = map;
-      map.on('error', (e) => console.error('[maplibre]', e.error));
-    }
-    // Top-right, above the bottom-docked timeline: zoom + compact attribution.
-    map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
-    map.addControl(new AttributionControl({ compact: true }), 'top-right');
-
-    map.on('load', () => {
-      map.addSource('roads', { type: 'geojson', data: EMPTY_FC });
-      // Clustered: a dense corridor collapses to a handful of aggregate
-      // circles at city zoom instead of a dot chain that buries the RQI line.
-      map.addSource('events', {
-        type: 'geojson',
-        data: EMPTY_FC,
-        cluster: true,
-        clusterMaxZoom: 14,
-        clusterRadius: 48,
-      });
-      map.addSource('contracts', { type: 'geojson', data: EMPTY_FC });
-
-      // White casing under the colored line keeps the RQI hues legible over
-      // the basemap (the dataviz "surface ring" between marks).
-      map.addLayer({
-        id: 'roads-casing',
-        type: 'line',
-        source: 'roads',
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          'line-color': '#ffffff',
-          'line-opacity': 0.9,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5.5, 14, 9, 17, 14],
-        },
-      });
-      map.addLayer({
-        id: 'roads-line',
-        type: 'line',
-        source: 'roads',
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          // Spread-built stops don't narrow to the style-spec tuple union.
-          'line-color': rqiColorExpression as unknown as ExpressionSpecification,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 14, 6, 17, 10],
-        },
-      });
-      map.addLayer({
-        id: 'events-cluster',
-        type: 'circle',
-        source: 'events',
-        filter: ['has', 'point_count'],
-        paint: {
-          'circle-radius': ['step', ['get', 'point_count'], 8, 25, 11, 100, 15],
-          'circle-color': EVENT_COLOR,
-          'circle-opacity': 0.55,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 1.5,
-        },
-      });
-      map.addLayer({
-        id: 'events-dot',
-        type: 'circle',
-        source: 'events',
-        filter: ['!', ['has', 'point_count']],
-        paint: {
-          // Recede at city scale so the RQI line carries the story; emerge on
-          // zoom-in where individual potholes become actionable.
-          'circle-radius': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            11,
-            ['interpolate', ['linear'], ['get', 'severity'], 0, 1.25, 1, 2.5],
-            15,
-            ['interpolate', ['linear'], ['get', 'severity'], 0, 3.5, 1, 8],
-          ],
-          'circle-color': EVENT_COLOR,
-          'circle-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0.2, 13, 0.5, 15, 0.85],
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 0.5, 15, 1.5],
-        },
-      });
-      map.addLayer({ id: 'contracts-line', type: 'line', source: 'contracts', paint: { 'line-color': '#2563eb', 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2, 15, 7], 'line-dasharray': [2, 1] } });
-
-      const popup = new Popup({ closeButton: false, maxWidth: '260px', offset: 10 });
-      popupRef.current = popup;
-
-      map.on('click', 'events-dot', (e: MapLayerMouseEvent) => {
-        const f = e.features?.[0];
-        if (!f || f.geometry.type !== 'Point') return;
-        const p = f.properties as { type: string; severity: number; occurredAt: string };
-        popup
-          .setLngLat(f.geometry.coordinates as [number, number])
-          .setDOMContent(eventPopupContent(p.type, p.severity, p.occurredAt))
-          .addTo(map);
-      });
-      map.on('click', 'roads-line', (e: MapLayerMouseEvent) => {
-        // Event dots win when both are under the pointer.
-        if (map.queryRenderedFeatures(e.point, { layers: ['events-dot'] }).length > 0) return;
-        const f = e.features?.[0];
-        if (!f) return;
-        const p = f.properties as { rqi: number; sampleCount: number; centerLat: number; centerLon: number };
-        popup
-          .setLngLat(e.lngLat)
-          .setDOMContent(roadPopupContent(p.rqi, p.sampleCount, contractsNear(p.centerLat, p.centerLon, contractsRef.current)))
-          .addTo(map);
-      });
-      for (const layer of ['events-dot', 'roads-line']) {
-        map.on('mouseenter', layer, () => {
-          map.getCanvas().style.cursor = 'pointer';
-        });
-        map.on('mouseleave', layer, () => {
-          map.getCanvas().style.cursor = '';
-        });
-      }
-
-      setMapReady(true);
-    });
-
-    map.on('moveend', () => scheduleLoad());
-
-    return () => {
-      window.clearTimeout(debounceRef.current);
-      abortRef.current?.abort();
-      map.remove();
-      mapRef.current = null;
-    };
-  }, [scheduleLoad]);
-
-  /* ── Timeline + panel stats bootstrap ───────────────────────────────── */
-  useEffect(() => {
-    let cancelled = false;
-    fetchTimeline()
-      .then((t) => {
-        if (!cancelled) setTimeline(t);
-      })
-      .catch(() => {
-        if (!cancelled) setTimelineFailed(true);
-      });
-    // Stats are decorative — failure just hides the strip.
-    fetchStats()
-      .then((s) => {
-        if (!cancelled) setStats(s);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => { void fetchLeaderboard(period).then(setContributors).catch(() => setContributors([])); }, [period]);
-  useEffect(() => { void fetchContracts().then(setContracts).catch(() => setContracts([])); }, []);
-  useEffect(() => { const map = mapRef.current; if (!mapReady || !map) return; (map.getSource('contracts') as GeoJSONSource | undefined)?.setData(contractsToGeoJSON(contracts)); }, [contracts, mapReady]);
-
-  // First data load once both the map and the timeline are ready — start at
-  // the newest day (the roads' current state).
-  useEffect(() => {
-    if (!mapReady || days.length === 0) return;
-    indexRef.current = days.length - 1;
-    setSelectedIndex(days.length - 1);
-    void loadData();
-  }, [mapReady, days, loadData]);
-
-  const handleSelect = useCallback(
-    (i: number) => {
-      indexRef.current = i;
-      setSelectedIndex(i);
-      scheduleLoad();
-    },
-    [scheduleLoad],
-  );
-
-  const showEmpty = timelineFailed || (timeline !== null && !timeline.earliest);
-
-  const statItems = stats
-    ? [
-        { label: 'km ridden', value: stats.kmRidden.toLocaleString('en-IN') },
-        { label: 'road segments', value: stats.segments.toLocaleString('en-IN') },
-        { label: 'events found', value: stats.events.toLocaleString('en-IN') },
-        { label: 'avg RQI', value: stats.avgRqi === null ? '—' : String(stats.avgRqi) },
-      ]
-    : [];
-
-  return (
-    <div className="flex h-viewport flex-col bg-paper text-ink">
-      {/* ── Header bar ──────────────────────────────────────────────── */}
-      <header className="z-10 border-b border-line bg-paper">
-        <div className="flex h-14 items-center gap-4 px-4 sm:px-6">
-          <a href="/" className="font-display text-lg font-bold tracking-tight text-ink">
-            {SITE.wordmark}
-            <span className="text-saffron">.</span>
-          </a>
-          <span className="eyebrow hidden sm:inline">Public panel · India</span>
-          <div className="ml-auto flex items-center gap-5">
-            <a
-              href="/app"
-              className="link-underline text-sm font-semibold text-saffron"
-            >
-              Get the app
-            </a>
-            <a
-              href="/"
-              className="link-underline hidden text-sm font-medium text-ink-2 transition-colors hover:text-ink sm:inline"
-            >
-              ← Home
-            </a>
-          </div>
-        </div>
-        {/* Live network stats — quiet single line under the masthead */}
-        {statItems.length > 0 && (
-          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-line px-4 py-2 sm:px-6">
-            {statItems.map((s) => (
-              <p key={s.label} className="text-xs text-ink-3">
-                <span className="font-display text-sm font-bold tabular-nums text-ink">
-                  {s.value}
-                </span>{' '}
-                {s.label}
-              </p>
-            ))}
-            {stats?.lastUpdatedAt && (
-              <p className="ml-auto hidden text-xs text-ink-3 sm:block">
-                Updated{' '}
-                {new Date(stats.lastUpdatedAt).toLocaleDateString('en-IN', {
-                  day: 'numeric',
-                  month: 'short',
-                })}
-              </p>
-            )}
-          </div>
-        )}
-      </header>
-
-      {/* ── Map + overlays ──────────────────────────────────────────── */}
-      <div className="relative flex-1">
-        {/* h-full/w-full, not inset-0: maplibre's stylesheet forces the
-            container to position:relative, which would zero out an
-            absolutely-positioned box. */}
-        <div ref={containerRef} className="h-full w-full" />
-
-        {/* Desktop Legend */}
-        <div className="absolute left-4 top-4 hidden sm:block">
-          <MapLegend />
-        </div>
-
-        {/* Mobile Legend Toggle */}
-        <div className="absolute left-3 top-3 sm:hidden z-20">
-          {mobileView === 'legend' ? (
-            <div className="relative">
-              <MapLegend />
-              <button 
-                onClick={() => setMobileView('none')}
-                className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper shadow-lg"
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <button 
-              onClick={() => setMobileView('legend')}
-              className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper/95 shadow-xl backdrop-blur text-xl font-bold text-ink hover:bg-paper"
-            >
-              ℹ️
-            </button>
-          )}
-        </div>
-
-        {/* Desktop & Mobile Panel Toggle */}
-        <div className={`absolute right-3 top-3 z-20 sm:hidden ${mobileView === 'panel' ? 'hidden' : 'block'}`}>
-          <button 
-            onClick={() => setMobileView('panel')}
-            className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-paper/95 shadow-xl backdrop-blur text-xl font-bold text-ink hover:bg-paper"
-          >
-            📊
-          </button>
-        </div>
-
-        <aside className={`absolute right-3 top-3 z-10 flex-col overflow-hidden rounded-2xl border border-line bg-paper/95 shadow-xl backdrop-blur sm:right-4 sm:top-4 ${mobileView === 'panel' ? 'flex w-[min(22rem,calc(100vw-1.5rem))]' : 'hidden sm:flex sm:w-[min(22rem,calc(100vw-1.5rem))]'}`}>
-          <nav className="flex border-b border-line">
-            {(['network', 'contributors', 'contracts'] as const).map((p) => (
-              <button 
-                key={p} 
-                onClick={() => {
-                  if (panel === p) setPanelExpanded(!panelExpanded);
-                  else { setPanel(p); setPanelExpanded(true); }
-                }} 
-                className={`flex-1 px-2 py-3 text-xs font-bold capitalize ${panel === p && panelExpanded ? 'bg-saffron text-white' : 'text-ink-2 hover:bg-paper-2 hover:text-ink'}`}
-              >
-                {p}
-              </button>
-            ))}
-            <button 
-              aria-label="Close panel"
-              onClick={() => setMobileView('none')} 
-              className="flex items-center justify-center border-l border-line px-3 text-xs font-bold text-ink sm:hidden hover:bg-paper-2"
-            >
-              ✕
-            </button>
-            <button 
-              aria-label={panelExpanded ? "Collapse panel" : "Expand panel"}
-              onClick={() => setPanelExpanded(e => !e)} 
-              className="hidden sm:flex items-center justify-center border-l border-line px-3 text-xs font-bold text-ink-2 hover:bg-paper-2 hover:text-ink"
-            >
-              {panelExpanded ? '▲' : '▼'}
-            </button>
-          </nav>
-          {panelExpanded && (
-            <div className="max-h-[42vh] overflow-auto p-4">
-              {panel === 'network' && <><p className="eyebrow">Live public data</p><h2 className="mt-1 font-display text-xl font-bold">India road health</h2><p className="mt-2 text-sm text-ink-2">Click a scored road or event for details. Use the timeline below to inspect historical RQI.</p><div className="mt-4 grid grid-cols-2 gap-2">{statItems.map((s) => <div key={s.label} className="rounded-xl bg-paper-2 p-3"><b className="block font-display text-lg">{s.value}</b><span className="text-xs text-ink-3">{s.label}</span></div>)}</div></>}
-              {panel === 'contributors' && <><div className="flex items-center justify-between"><h2 className="font-display text-xl font-bold">Leaderboard</h2><select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} className="rounded-lg border border-line bg-paper px-2 py-1 text-xs"><option value="monthly">This month</option><option value="lifetime">Lifetime</option></select></div>{contributors.length === 0 ? <p className="mt-4 text-sm text-ink-3">No contributors have opted in yet.</p> : <ol className="mt-3 space-y-2">{contributors.map((c, i) => <li key={c.id} className="flex items-center rounded-xl bg-paper-2 p-3"><b className="mr-3 text-ink-3">#{i + 1}</b><div className="flex-1"><b className="text-sm">{c.name}</b><p className="text-xs text-ink-3">{c.journeyCount} journeys</p></div><b>{c.mappedKm.toLocaleString('en-IN')} km</b></li>)}</ol>}</>}
-              {panel === 'contracts' && <><h2 className="font-display text-xl font-bold">Road accountability</h2><p className="mt-1 text-xs text-ink-3">Only records explicitly published by administrators appear here.</p>{contracts.length === 0 ? <p className="mt-4 text-sm text-ink-3">No published contracts.</p> : <div className="mt-3 space-y-3">{contracts.map((contract) => <article key={contract.id} className="rounded-xl border border-line p-3"><b className="text-sm">{contract.roadName}</b><p className="text-xs text-ink-3">{contract.city}{contract.ward ? ` · Ward ${contract.ward}` : ''}</p><p className="mt-2 text-xs"><b>Contractor:</b> {contract.contractorName}</p><p className="text-xs"><b>Status:</b> {contract.status}</p>{contract.guaranteeUntil && <p className="text-xs"><b>Guarantee:</b> until {formatDay(contract.guaranteeUntil)}</p>}</article>)}</div>}</>}
-            </div>
-          )}
-        </aside>
-
-        {/* Refetch keeps the frame — just a quiet chip while data reloads */}
-        {updating && (
-          <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full border border-line bg-paper/95 px-3 py-1 text-xs font-medium text-ink-2 shadow-sm backdrop-blur">
-            Updating…
-          </div>
-        )}
-
-        {/* Empty state — the map stays live, the timeline stays hidden */}
-        {showEmpty && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-6">
-            <div className="pointer-events-auto max-w-sm rounded-2xl border border-line bg-paper/95 p-8 text-center shadow-[0_24px_60px_-24px_rgba(10,10,10,0.4)] backdrop-blur">
-              <p className="eyebrow mb-3">Public panel</p>
-              <h1 className="font-display text-2xl font-extrabold tracking-tight text-ink">
-                {timelineFailed ? 'Map data is unavailable' : 'No road data yet'}
-              </h1>
-              <p className="mt-3 text-sm leading-relaxed text-ink-2">
-                {timelineFailed
-                  ? 'We could not reach the road-quality service. Please check back in a little while.'
-                  : 'Every ride with the BetterRoads app paints this map with the true condition of India’s roads. Be one of the first.'}
-              </p>
-              <a
-                href="/app"
-                className="link-underline mt-5 inline-block text-sm font-semibold text-saffron"
-              >
-                Get the app →
-              </a>
-            </div>
-          </div>
-        )}
-
-        {/* Draggable timeline — the headline control */}
-        {days.length > 0 && (
-          <div className="absolute inset-x-3 bottom-3 z-10 sm:inset-x-auto sm:bottom-5 sm:left-1/2 sm:w-[min(40rem,calc(100vw-2rem))] sm:-translate-x-1/2">
-            <TimelineBar
-              days={days}
-              activity={activity}
-              selectedIndex={selectedIndex}
-              onSelect={handleSelect}
-            />
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  const days = useMemo(() => timeline?.earliest && timeline.latest ? dayRange(timeline.earliest, timeline.latest) : [], [timeline]); selectedDay.current = days[dayIndex];
+  const activity = timeline?.days.find((x) => x.day === selectedDay.current) ?? { sectionsNew: 0, conditionChanges: 0, potholeSignals: 0, segmentsUpdated: 0, avgRqi: null, eventCount: 0, day: '' };
+  const activitySeries = useMemo(() => { const byDay = new Map(timeline?.days.map((x) => [x.day, x.segmentsUpdated + x.potholeSignals])); return days.map((d) => byDay.get(d) ?? 0); }, [days, timeline]);
+  const load = useCallback(async (bbox: Bbox, mode: 'india' | 'local') => { const m = map.current; if (!m?.getSource('roads')) return; dataAbort.current?.abort(); const ac = new AbortController(); dataAbort.current = ac; setLoading(true); setResolved(false); try { const at = selectedDay.current; const [roads, potholes, events] = await Promise.all([fetchRoads(bbox, at, ac.signal), fetchHotspots(bbox, at, mode === 'india' ? 4 : m.getZoom(), ac.signal), fetchEvents(bbox, undefined, at, ac.signal)]); const drawable = roads.filter(validRoad); (m.getSource('coverage') as GeoJSONSource).setData(coverageGeo(drawable)); (m.getSource('roads') as GeoJSONSource).setData(mode === 'india' ? EMPTY : roadsGeo(drawable)); (m.getSource('hotspots') as GeoJSONSource).setData(hotspotsGeo(potholes.hotspots)); (m.getSource('other-events') as GeoJSONSource).setData(eventsGeo(events)); (m.getSource('contracts') as GeoJSONSource).setData(contractsGeo(contractsRef.current, at)); setRoadCount(drawable.length); setLowRoadCount(drawable.filter((r) => r.sampleCount < 3).length); setHotspots(potholes.hotspots); setEventCount(events.filter((e) => e.type !== 'POTHOLE').length); setTruncated(potholes.truncated); setRegionError(false); } catch (error) { if ((error as Error).name !== 'AbortError') setRegionError(true); } finally { if (!ac.signal.aborted) { setLoading(false); setResolved(true); } } }, []);
+  const choose = useCallback((p: IndiaPlace) => { const m = map.current; if (!m) return; const b = placeBox(p); scope.current = 'local'; skipMove.current = true; setLocal(true); setPlace(p); setQuery(placeName(p)); setResults([]); setMessage(''); m.fitBounds([[b.minLon, b.minLat], [b.maxLon, b.maxLat]], { padding: innerWidth < 640 ? 55 : 90, maxZoom: 14, duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 650 }); void load(b, 'local'); }, [load]);
+  const allIndia = () => { const m = map.current; if (!m) return; scope.current = 'india'; setLocal(false); setPlace(null); setResults([]); setMessage(''); m.fitBounds([[INDIA.minLon, INDIA.minLat], [INDIA.maxLon, INDIA.maxLat]], { padding: 40, duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 650 }); void load(INDIA, 'india'); };
+  const search = async (e: FormEvent) => { e.preventDefault(); if (!query.trim()) { setMessage('Type a city or town in India.'); return; } searchAbort.current?.abort(); const ac = new AbortController(); searchAbort.current = ac; setSearching(true); setMessage(''); setResults([]); try { const found = await searchIndiaPlaces(query.trim(), ac.signal); if (!found.length) setMessage('We could not find that place in India. Check the spelling or try a nearby city.'); else if (found.length === 1) choose(found[0]); else setResults(found); } catch (error) { if ((error as Error).name !== 'AbortError') setMessage('Place search is unavailable right now. You can still explore the map.'); } finally { if (!ac.signal.aborted) setSearching(false); } };
+  useEffect(() => { if (!node.current) return; const m = new MlMap({ container: node.current, center: [79.5, 22.3], zoom: 4.15, minZoom: 3.5, maxZoom: 19, maxBounds: [[61, 1], [104, 40.5]], attributionControl: false, style: { version: 8, sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: '© OpenStreetMap contributors' }, india: { type: 'geojson', data: '/india-simplified.geojson' } }, layers: [{ id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-saturation': -.9, 'raster-contrast': -.08, 'raster-brightness-max': .94 } }, { id: 'india-halo', type: 'line', source: 'india', paint: { 'line-color': '#fff', 'line-width': 4 } }, { id: 'india-line', type: 'line', source: 'india', paint: { 'line-color': '#77736c', 'line-width': 1.3 } }] } }); map.current = m; m.addControl(new NavigationControl({ showCompass: false }), 'bottom-right'); m.addControl(new AttributionControl({ compact: true }), 'bottom-right');
+    m.on('load', () => { m.addImage('pothole-low', makePin('#e66b61'), { pixelRatio: 2 }); m.addImage('pothole-mid', makePin('#d43c34'), { pixelRatio: 2 }); m.addImage('pothole-high', makePin('#a91e20'), { pixelRatio: 2 }); m.addSource('coverage', { type: 'geojson', data: EMPTY }); m.addSource('roads', { type: 'geojson', data: EMPTY }); m.addSource('hotspots', { type: 'geojson', data: EMPTY }); m.addSource('other-events', { type: 'geojson', data: EMPTY, cluster: true, clusterRadius: 40 }); m.addSource('contracts', { type: 'geojson', data: EMPTY }); m.addSource('accuracy', { type: 'geojson', data: EMPTY });
+      m.addLayer({ id: 'coverage-ring', type: 'circle', source: 'coverage', layout: { visibility: 'none' }, paint: { 'circle-radius': 11, 'circle-color': '#fff', 'circle-stroke-color': '#d55a17', 'circle-stroke-width': 2 } }); m.addLayer({ id: 'coverage', type: 'circle', source: 'coverage', layout: { visibility: 'none' }, paint: { 'circle-radius': 6, 'circle-color': '#df651f' } }); m.addLayer({ id: 'accuracy-fill', type: 'fill', source: 'accuracy', paint: { 'fill-color': '#b82b2d', 'fill-opacity': .12 } }); m.addLayer({ id: 'accuracy-line', type: 'line', source: 'accuracy', paint: { 'line-color': '#a91e20', 'line-opacity': .6, 'line-dasharray': [2, 2] } }); m.addLayer({ id: 'contracts', type: 'line', source: 'contracts', layout: { visibility: 'none' }, paint: { 'line-color': '#28618f', 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2, 15, 7], 'line-dasharray': [2, 1] } }); m.addLayer({ id: 'road-ring', type: 'line', source: 'roads', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#fff', 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 6, 15, 13], 'line-opacity-transition': { duration: 260 } } }); m.addLayer({ id: 'roads', type: 'line', source: 'roads', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['step', ['get', 'rqi'], '#c83b31', 45, '#d88a16', 75, '#1b7a43'], 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 15, 9], 'line-opacity': ['case', ['<', ['get', 'sampleCount'], 3], .46, .95], 'line-opacity-transition': { duration: 260 } } }); m.addLayer({ id: 'hotspot-pulse', type: 'circle', source: 'hotspots', paint: { 'circle-radius': 16, 'circle-color': '#b82b2d', 'circle-opacity': .12, 'circle-blur': .35 } }); m.addLayer({ id: 'hotspots', type: 'symbol', source: 'hotspots', layout: { 'icon-image': ['step', ['get', 'maximumSeverity'], 'pothole-low', .34, 'pothole-mid', .67, 'pothole-high'], 'icon-anchor': 'bottom', 'icon-allow-overlap': true } }); m.addLayer({ id: 'hotspot-badge', type: 'circle', source: 'hotspots', filter: ['>', ['get', 'badgeCount'], 1], paint: { 'circle-radius': 8, 'circle-translate': [11, -27], 'circle-color': '#211d19', 'circle-stroke-color': '#fff8ee', 'circle-stroke-width': 1.5 } }); m.addLayer({ id: 'hotspot-badge-label', type: 'symbol', source: 'hotspots', filter: ['>', ['get', 'badgeCount'], 1], layout: { 'text-field': ['to-string', ['get', 'badgeCount']], 'text-size': 9, 'text-allow-overlap': true, 'text-offset': [.92, -2.25] }, paint: { 'text-color': '#fff' } }); m.addLayer({ id: 'other-events', type: 'circle', source: 'other-events', layout: { visibility: 'none' }, paint: { 'circle-radius': 6, 'circle-color': '#3d5367', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+      const popup = new Popup({ maxWidth: '320px' }); m.on('click', 'coverage', (e) => { const p = e.features?.[0]?.properties; if (!p) return; const b = { minLat: +p.minLat, maxLat: +p.maxLat, minLon: +p.minLon, maxLon: +p.maxLon }; scope.current = 'local'; skipMove.current = true; setLocal(true); setPlace(null); m.fitBounds([[b.minLon, b.minLat], [b.maxLon, b.maxLat]], { padding: 80, maxZoom: 13 }); void load(b, 'local'); }); m.on('click', 'roads', (e: MapLayerMouseEvent) => { const p = e.features?.[0]?.properties; if (!p) return; const n = +p.rqi; popup.setLngLat(e.lngLat).setDOMContent(popupRows(`${Math.round(n)} / 100 · ${scoreWord(n)}`, 'Condition as measured by accepted journeys.', [['Accepted journey samples', String(p.sampleCount)], ['Reports by this date', String(p.eventCount)], ['Last evidence', date(p.lastEvidenceAt)]], [['Road reference', String(p.segmentKey)], ['Position wording', 'Recorded section centre']])).addTo(m); }); m.on('click', 'hotspots', (e: MapLayerMouseEvent) => { const f = e.features?.[0], p = f?.properties; if (!f || !p || f.geometry.type !== 'Point') return; if (p.confidence === 'regional') { m.easeTo({ center: f.geometry.coordinates as [number, number], zoom: Math.min(11, m.getZoom() + 4), duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 600 }); scope.current = 'local'; setLocal(true); setPlace(null); return; } const accuracy = p.accuracyM == null ? null : +p.accuracyM; (m.getSource('accuracy') as GeoJSONSource).setData(accuracy ? accuracyCircle(+p.lon, +p.lat, accuracy) : EMPTY); const title = p.confidence === 'repeated' ? 'Repeatedly detected' : 'Possible pothole'; const precision = accuracy ? `Approximate position · ±${Math.round(accuracy)} m GPS radius` : 'Recorded position · GPS precision was not recorded'; popup.setLngLat(f.geometry.coordinates as [number, number]).setDOMContent(popupRows(title, 'Automatic sensor evidence detected by this date — repair status is not recorded.', [['Detections', String(p.detectionCount)], ['Accepted journeys', String(p.distinctJourneyCount)], ['First detected', date(p.firstDetectedAt)], ['Last detected', date(p.lastDetectedAt)], ['Severity', `${impactWord(+p.maximumSeverity)} · ${Math.round(+p.averageSeverity * 100)}% average`], ['GPS precision', precision]], [['Hotspot reference', String(p.id)]])).addTo(m); }); m.on('click', 'other-events', (e: MapLayerMouseEvent) => { const p = e.features?.[0]?.properties; if (!p) return; popup.setLngLat(e.lngLat).setDOMContent(popupRows(eventNames[p.type] ?? 'Road event', 'Shown separately from automatic pothole evidence.', [['Recorded', date(p.occurredAt)], ['Severity', impactWord(+p.severity)]])).addTo(m); }); setReady(true); });
+    m.on('dragstart', () => { if (scope.current === 'local') setPlace(null); }); m.on('moveend', () => { if (skipMove.current) { skipMove.current = false; return; } if (scope.current === 'india') return; clearTimeout(timer.current); timer.current = window.setTimeout(() => void load(mapBox(m), 'local'), 300); }); const ro = new ResizeObserver(() => m.resize()); ro.observe(node.current); return () => { ro.disconnect(); clearTimeout(timer.current); dataAbort.current?.abort(); searchAbort.current?.abort(); m.remove(); map.current = null; }; }, [load]);
+  useEffect(() => { if (ready && days.length) void load(scope.current === 'india' ? INDIA : mapBox(map.current!), scope.current); }, [ready, dayIndex, days.length, load]);
+  useEffect(() => { if (ready && window.innerWidth <= 700 && scope.current === 'india') map.current?.fitBounds([[INDIA.minLon, INDIA.minLat], [INDIA.maxLon, INDIA.maxLat]], { padding: { top: 190, right: 24, bottom: 150, left: 24 }, duration: 0 }); }, [ready]);
+  useEffect(() => { let stop = false; Promise.allSettled([fetchStats(), fetchTimeline(), fetchContracts()]).then(([a, b, c]) => { if (stop) return; if (a.status === 'fulfilled') setStats(a.value); else setErrors((x) => ({ ...x, overview: true })); if (b.status === 'fulfilled') { setTimeline(b.value); const count = b.value.earliest && b.value.latest ? dayRange(b.value.earliest, b.value.latest).length : 0; setDayIndex(Math.max(0, count - 1)); } else setErrors((x) => ({ ...x, overview: true })); if (c.status === 'fulfilled') setContracts(c.value); else setErrors((x) => ({ ...x, work: true })); }); return () => { stop = true; }; }, []);
+  useEffect(() => { let stop = false; fetchLeaderboard(period).then((x) => { if (!stop) setPeople(x); }).catch(() => { if (!stop) setErrors((x) => ({ ...x, people: true })); }); return () => { stop = true; }; }, [period]);
+  useEffect(() => { if (!ready) return; const m = map.current!; ['road-ring', 'roads'].forEach((id) => m.setLayoutProperty(id, 'visibility', layers.roads ? 'visible' : 'none')); ['hotspot-pulse', 'hotspots', 'hotspot-badge', 'hotspot-badge-label'].forEach((id) => m.setLayoutProperty(id, 'visibility', layers.potholes ? 'visible' : 'none')); ['coverage-ring', 'coverage'].forEach((id) => m.setLayoutProperty(id, 'visibility', layers.coverage ? 'visible' : 'none')); m.setLayoutProperty('other-events', 'visibility', layers.otherEvents ? 'visible' : 'none'); m.setLayoutProperty('contracts', 'visibility', layers.contracts ? 'visible' : 'none'); }, [ready, layers]);
+  const statsRows = stats ? [['Distance recorded', `${stats.kmRidden.toLocaleString('en-IN')} km`], ['Measured road sections', stats.segments.toLocaleString('en-IN')], ['Accepted journeys', stats.journeys.toLocaleString('en-IN')], ['Days of data', stats.daysOfData.toLocaleString('en-IN')], ['Average condition score', stats.avgRqi == null ? 'Not enough data' : `${Math.round(stats.avgRqi)} / 100`]] : [];
+  const emptyCity = !!place && resolved && !regionError && roadCount === 0 && hotspots.length === 0, noIndia = !local && resolved && !regionError && roadCount === 0 && hotspots.length === 0 && (stats?.segments ?? 0) === 0; const possible = hotspots.find((h) => h.confidence === 'possible'); const newestEvidence = [...hotspots.map((h) => h.lastDetectedAt), ...(selectedDay.current ? [selectedDay.current] : [])].sort().at(-1); const stale = newestEvidence ? Date.now() - new Date(newestEvidence).getTime() > 30 * 86_400_000 : false; const mission = roadCount === 0 ? { title: `Put ${place ? placeName(place) : 'this city'} on the map.`, body: 'Record the first accepted road journey.' } : lowRoadCount > 0 ? { title: `Strengthen the evidence on ${Math.min(3, lowRoadCount)} roads.`, body: 'Repeat a route so its condition is supported by more journeys.' } : possible ? { title: 'Help check this pothole signal again.', body: 'A separate accepted journey can strengthen the evidence.' } : stale ? { title: 'Refresh your city’s road evidence.', body: 'The newest visible evidence is more than 30 days old.' } : { title: 'Keep this public record current.', body: hotspots.some((h) => h.confidence === 'repeated') ? 'Milestone: this view includes a repeatedly detected hotspot.' : 'Every accepted journey strengthens the shared map.' };
+  return <div className="map-page"><header className="map-header"><a href="/" className="map-wordmark">{SITE.wordmark}<span>.</span></a><p>Road evidence across India</p><a href="/app">Start mapping</a></header><main className="map-stage"><div ref={node} className="map-canvas" aria-label="Interactive historical map of road evidence across India" />
+    <section className="map-search-card">{local && <button className="map-back" onClick={allIndia}><Icon name="back"/> See all of India</button>}<h1>{place ? placeName(place) : local ? 'Road evidence nearby' : 'Pothole signals across India'}</h1><p>{local ? 'Road condition and automatic pothole signals recorded by the selected date.' : 'Red pins show aggregated automatic pothole signals. Select one to inspect its region.'}</p><form className="map-search" onSubmit={search}><Icon name="search"/><label className="sr-only" htmlFor="place">City or town</label><input id="place" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search a city or town" autoComplete="off"/><button disabled={searching}>{searching ? 'Finding…' : 'Find'}</button></form>{message && <p className="map-message" role="status">{message}</p>}{results.length > 0 && <div className="map-results"><b>Choose a place</b>{results.map((p) => <button key={p.place_id} onClick={() => choose(p)}><strong>{placeName(p)}</strong><span>{p.display_name}</span></button>)}<small>Place search by OpenStreetMap</small></div>}</section>
+    <div className="map-actions"><button className={layerOpen ? 'active' : ''} onClick={() => setLayerOpen(!layerOpen)}><Icon name="layers"/> Layers</button><button className={panel ? 'active' : ''} onClick={() => setPanel(panel ? null : 'overview')}><Icon name="data"/> Data</button></div>
+    {layerOpen && <section className="map-layer-card"><CardHead title="Map layers" close={() => setLayerOpen(false)}/>{([['potholes', 'Automatic pothole signals', `${hotspots.length} hotspots in this view.`], ['roads', 'Road condition', 'Green is good; amber and red need attention.'], ['coverage', 'Coverage beacons', 'Saffron markers show measured areas.'], ['otherEvents', 'Other road events', `${eventCount} bumps, swerves, breakers, or manual reports.`], ['contracts', 'Published road work', `${contracts.length} records available.`]] as [Layer, string, string][]).map(([key, title, note]) => <label key={key}><input type="checkbox" checked={layers[key]} onChange={() => setLayers((x) => ({ ...x, [key]: !x[key] }))}/><span><strong>{title}</strong><small>{note}</small></span></label>)}<p className="map-note">Potholes are automatic sensor detections only. Repeated means at least two separate accepted journeys—not a confirmed defect.</p></section>}
+    <div className="map-legend"><span><i className="pin-key"/>Pothole signal</span><span><i className="good"/>Good</span><span><i className="warn"/>Attention</span><span><i className="poor"/>Poor</span></div>{loading && <div className="map-loading">Updating evidence…</div>}{truncated && <div className="map-truncated">Zoom in to see all signals in this area.</div>}
+    {local && resolved && !regionError && !emptyCity && <aside className="map-mission"><h2>{mission.title}</h2><p>{mission.body}</p><a href="/app">Open the app</a><small>Use a securely mounted phone. Never interact while driving.</small></aside>}
+    {!local && resolved && !regionError && !noIndia && <aside className="map-mission map-mission-national"><h2>{mission.title}</h2><p>{mission.body}</p><a href="/app">Open the app</a><small>Use a securely mounted phone. Never interact while driving.</small></aside>}
+    {regionError && <State title="Road evidence is unavailable." body="The base map still works. Try loading this area again." action="Try again" onClick={() => void load(scope.current === 'india' ? INDIA : mapBox(map.current!), scope.current)}/>} {emptyCity && <State title={`Put ${placeName(place!)} on the map.`} body="Record a journey with your phone securely mounted. Never interact while driving." action={`Start mapping ${placeName(place!)}`} href="/app"/>} {noIndia && <State title="India’s road record is waiting for its first journey." body="Start a safe, phone-mounted journey and help create public evidence." action="Start mapping" href="/app"/>}
+    {panel && <aside className="map-panel"><CardHead title="What this map knows" close={() => setPanel(null)}/><nav>{([['overview', 'Overview'], ['people', 'People'], ['work', 'Road work']] as [Panel, string][]).map(([key, label]) => <button className={panel === key ? 'active' : ''} onClick={() => setPanel(key)} key={key}>{label}</button>)}</nav><div className="map-panel-body">{panel === 'overview' && <><h3>Shared road evidence</h3><p>Network totals cover all public data. The map itself is filtered to the selected date.</p>{errors.overview && <em>Some totals could not be loaded.</em>}<div className="map-stats">{statsRows.map(([a, b]) => <div key={a}><strong>{b}</strong><span>{a}</span></div>)}</div><Details rows={[['Selected date', date(selectedDay.current)], ['Roads in this view', roadCount == null ? 'Loading' : String(roadCount)], ['Pothole hotspots', String(hotspots.length)]]}/><h3>How confidence works</h3><p>One accepted journey is a possible pothole. Two separate accepted journeys makes it repeatedly detected. Neither label claims a confirmed or unresolved defect.</p></>}{panel === 'people' && <><div className="map-section"><div><h3>People mapping roads</h3><p>Only people who chose to appear publicly.</p></div><select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)}><option value="monthly">This month</option><option value="lifetime">All time</option></select></div>{errors.people ? <em>Contributor data could not be loaded.</em> : !people.length ? <p>No contributors have chosen to appear yet.</p> : <ol className="map-people">{people.map((x, i) => <li key={x.id}><b>{i + 1}</b><div><strong>{x.name}</strong><p>{x.mappedKm} km · {x.journeyCount} accepted journeys</p><small>Mapping since {date(x.contributingSince)} · Last contribution {date(x.lastContributionAt)}</small></div></li>)}</ol>}</>}{panel === 'work' && <><h3>Published road work</h3><p>Turn on the road-work layer to see records published by the selected date.</p>{errors.work ? <em>Road work records could not be loaded.</em> : !contracts.length ? <p>No road work records have been published yet.</p> : <div className="map-contracts">{contracts.map((x) => <article key={x.id}><header><h4>{x.roadName}</h4><span>{x.status}</span></header><p>{x.city}{x.ward ? ` · Ward ${x.ward}` : ''}</p></article>)}</div>}</>}</div></aside>}
+    {days.length > 0 && <TimelineBar days={days} activity={activitySeries} selectedIndex={dayIndex} onSelect={setDayIndex} summary={activity}/>}</main></div>;
 }
+function CardHead({ title, close }: { title: string; close: () => void }) { return <div className="map-card-head"><h2>{title}</h2><button aria-label="Close" onClick={close}><Icon name="close"/></button></div>; }
+function Details({ rows }: { rows: [string, string][] }) { return <dl className="map-details">{rows.map(([a, b]) => <div key={a}><dt>{a}</dt><dd>{b}</dd></div>)}</dl>; }
+function State({ title, body, action, href, onClick }: { title: string; body: string; action: string; href?: string; onClick?: () => void }) { return <section className="map-state"><h2>{title}</h2><p>{body}</p>{href ? <a href={href}>{action}</a> : <button onClick={onClick}>{action}</button>}</section>; }

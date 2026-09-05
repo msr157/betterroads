@@ -2,13 +2,17 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
-import { createDecipheriv } from 'crypto';
+import { createDecipheriv, createHash } from 'crypto';
 import { db } from '../db/index.js';
-import { administrators, adminSessions, contractors, devices, journeys, roadContracts, waitlistSignups, feedbacks } from '../db/schema.js';
+import {
+  administrators, adminSessions, collectionLabels, collectionMarkers, collectionWindows, contractors, devices, journeys,
+  researchDevices, researchRoutes, researchSites, roadContracts, waitlistSignups, feedbacks,
+} from '../db/schema.js';
 import { rateLimitMiddleware } from '../middleware/rateLimit.js';
 import { nearestCity } from '../lib/india.js';
 import { bearerToken, createAdminSession, hashPassword, hashToken, resolveAdminSession, verifyPassword } from '../lib/auth.js';
 import { parseCsv } from '../lib/csv.js';
+import { resolveLabelConsensus } from '../lib/labelConsensus.js';
 
 /**
  * Internal admin API — read-only stats + tables for the BetterRoads
@@ -160,6 +164,12 @@ router.get('/journeys', zValidator('query', pageSchema), async (c) => {
           rqiScore: journeys.rqiScore,
           eventCount: journeys.eventCount,
           acceptedAt: journeys.acceptedAt,
+          qualityStatus: journeys.qualityStatus,
+          qualityReasons: journeys.qualityReasons,
+          qualityDiagnostics: journeys.qualityDiagnostics,
+          detectionAlgorithmVersion: journeys.detectionAlgorithmVersion,
+          movingDurationS: journeys.movingDurationS,
+          stationaryDurationS: journeys.stationaryDurationS,
           deviceUuid: devices.deviceUuid,
           devicePlatform: devices.platform,
           deviceModel: devices.model,
@@ -466,13 +476,13 @@ router.get('/map/data', zValidator('query', mapQuerySchema), async (c) => {
     showSegments ? db.execute(sql`SELECT rs.segment_key AS "segmentKey", rs.geometry, coalesce((SELECT ss.rqi FROM segment_snapshots ss WHERE ss.segment_key=rs.segment_key ${to ? sql`AND ss.day <= ${to}::date` : sql``} ORDER BY ss.day DESC LIMIT 1), rs.current_rqi) AS rqi, rs.sample_count AS "sampleCount" FROM road_segments rs WHERE EXISTS (SELECT 1 FROM segment_snapshots ss WHERE ss.segment_key=rs.segment_key ${from ? sql`AND ss.day >= ${from}::date` : sql``} ${to ? sql`AND ss.day <= ${to}::date` : sql``}) OR (${!from && !to}) LIMIT 5000`) : Promise.resolve([]),
     showEvents ? db.execute(sql`SELECT id,type,severity,occurred_at AS "occurredAt",lat,lon,journey_id AS "journeyId" FROM road_events WHERE severity >= ${severity} ${from ? sql`AND occurred_at >= ${from}::date` : sql``} ${to ? sql`AND occurred_at < ${to}::date + interval '1 day'` : sql``} ${type ? sql`AND type=${type.toUpperCase()}` : sql``} LIMIT 5000`) : Promise.resolve([]),
     showContracts ? db.execute(sql`SELECT id,road_name AS "roadName",city,status,geometry,published FROM road_contracts WHERE geometry IS NOT NULL`) : Promise.resolve([]),
-    db.execute(sql`SELECT j.id, j.started_at AS "startedAt", j.ended_at AS "endedAt", j.distance_m AS "distanceM" FROM journeys j JOIN journey_raw jr ON jr.journey_id=j.id WHERE jr.payload ? 'path' ${from ? sql`AND j.ended_at >= ${from}::date` : sql``} ${to ? sql`AND j.started_at < ${to}::date + interval '1 day'` : sql``} ORDER BY j.ended_at DESC LIMIT 100`),
+    db.execute(sql`SELECT j.id, j.started_at AS "startedAt", j.ended_at AS "endedAt", j.distance_m AS "distanceM" FROM journeys j JOIN journey_raw jr ON jr.journey_id=j.id WHERE (jsonb_array_length(coalesce(jr.payload->'path', '[]'::jsonb)) >= 2 OR jsonb_array_length(coalesce(jr.payload->'locationSamples', '[]'::jsonb)) >= 2) ${from ? sql`AND j.ended_at >= ${from}::date` : sql``} ${to ? sql`AND j.started_at < ${to}::date + interval '1 day'` : sql``} ORDER BY j.ended_at DESC LIMIT 100`),
   ]);
   return c.json({ ok: true, segments, events, contracts: contractsRows, journeys: journeyRows });
 });
 
 router.get('/journeys/:id/replay', async (c) => {
-  const rows = await db.execute(sql`SELECT j.id,j.started_at AS "startedAt",j.ended_at AS "endedAt",j.distance_m AS "distanceM",jr.payload->'path' AS path FROM journeys j JOIN journey_raw jr ON jr.journey_id=j.id WHERE j.id=${c.req.param('id')}`);
+  const rows = await db.execute(sql`SELECT j.id,j.started_at AS "startedAt",j.ended_at AS "endedAt",j.distance_m AS "distanceM",CASE WHEN jsonb_array_length(coalesce(jr.payload->'path', '[]'::jsonb)) >= 2 THEN jr.payload->'path' ELSE (SELECT jsonb_agg(jsonb_build_array((sample->>'lat')::float, (sample->>'lon')::float, (sample->>'timestamp')::bigint)) FROM jsonb_array_elements(coalesce(jr.payload->'locationSamples', '[]'::jsonb)) sample) END AS path FROM journeys j JOIN journey_raw jr ON jr.journey_id=j.id WHERE j.id=${c.req.param('id')}`);
   if (!rows[0]) return c.json({ ok: false, error: 'Journey not found.' }, 404);
   return c.json({ ok: true, journey: rows[0] });
 });
@@ -491,6 +501,241 @@ router.get('/map/export.geojson', zValidator('query', mapQuerySchema), async (c)
   ];
   return c.json({ type: 'FeatureCollection', features }, 200, { 'Content-Disposition': 'attachment; filename="betterroads-map.geojson"' });
 });
+
+// ─── Vehicle-separated research collection ──────────────────────────────────
+
+const collectionPageSchema = pageSchema.extend({
+  vehicleClass: z.enum(['CAR', 'BIKE', 'AUTO_RICKSHAW', 'BUS', 'TRUCK']).optional(),
+  qualityStatus: z.enum(['RECEIVED', 'QUARANTINED']).optional(),
+  mode: z.enum(['STANDARD', 'CONTROLLED_RESEARCH']).optional(),
+});
+
+router.get('/collection/sessions', zValidator('query', collectionPageSchema), async (c) => {
+  const { limit, offset, vehicleClass, qualityStatus, mode } = c.req.valid('query');
+  const rows = await db.execute(sql`
+    SELECT cs.id, cs.vehicle_class AS "vehicleClass", cs.vehicle_subtype AS "vehicleSubtype",
+           cs.mount_position AS "mountPosition", cs.profile_version AS "profileVersion", cs.mode,
+           cs.upload_state AS "uploadState", cs.quality_status AS "qualityStatus",
+           cs.quality_reasons AS "qualityReasons", cs.accepted_distance_m AS "acceptedDistanceM",
+           cs.started_at AS "startedAt", cs.completed_at AS "completedAt", d.device_uuid AS "deviceUuid",
+           d.model AS "deviceModel",
+           (SELECT count(*)::int FROM collection_windows cw WHERE cw.session_id=cs.id) AS "windowCount",
+           (SELECT count(*)::int FROM collection_raw_objects ro WHERE ro.session_id=cs.id AND ro.state='VERIFIED') AS "rawObjectCount"
+    FROM collection_sessions cs JOIN devices d ON d.id=cs.device_id
+    WHERE (${vehicleClass ?? null}::text IS NULL OR cs.vehicle_class=${vehicleClass ?? null})
+      AND (${qualityStatus ?? null}::text IS NULL OR cs.quality_status=${qualityStatus ?? null})
+      AND (${mode ?? null}::text IS NULL OR cs.mode=${mode ?? null})
+    ORDER BY cs.received_at DESC LIMIT ${limit} OFFSET ${offset}
+  `);
+  const totals = await db.execute(sql`
+    SELECT count(*)::int AS count FROM collection_sessions cs
+    WHERE (${vehicleClass ?? null}::text IS NULL OR cs.vehicle_class=${vehicleClass ?? null})
+      AND (${qualityStatus ?? null}::text IS NULL OR cs.quality_status=${qualityStatus ?? null})
+      AND (${mode ?? null}::text IS NULL OR cs.mode=${mode ?? null})
+  `) as unknown as Array<{ count: number }>;
+  return c.json({ ok: true, sessions: rows, total: totals[0]?.count ?? 0, limit, offset });
+});
+
+router.get('/collection/sessions/:id', async (c) => {
+  const id = c.req.param('id');
+  const sessions = await db.execute(sql`SELECT * FROM collection_sessions WHERE id=${id}`);
+  if (!sessions[0]) return c.json({ ok: false, error: 'Collection session not found.' }, 404);
+  const [windows, rawObjects, markers] = await Promise.all([
+    db.execute(sql`SELECT * FROM collection_windows WHERE session_id=${id} ORDER BY started_at`),
+    db.execute(sql`SELECT id,window_id AS "windowId",object_key AS "objectKey",expected_size AS "expectedSize",observed_size AS "observedSize",sha256,state,verified_at AS "verifiedAt" FROM collection_raw_objects WHERE session_id=${id}`),
+    db.execute(sql`SELECT cm.*,rs.stable_site_id AS "stableSiteId",rs.site_type AS "siteType" FROM collection_markers cm LEFT JOIN research_sites rs ON rs.id=cm.site_id WHERE cm.session_id=${id} ORDER BY cm.marked_at`),
+  ]);
+  return c.json({ ok: true, session: sessions[0], windows, rawObjects, markers });
+});
+
+const researchDeviceSchema = z.object({
+  deviceUuid: z.string().uuid(),
+  permittedVehicleClasses: z.array(z.enum(['CAR', 'BIKE', 'AUTO_RICKSHAW', 'BUS', 'TRUCK'])).min(1).max(5),
+  expiresAt: z.string().datetime().nullable().optional(),
+  operatorNote: z.string().trim().max(500).nullable().optional(),
+});
+
+router.get('/research/devices', async (c) => c.json({ ok: true, devices: await db.select().from(researchDevices).orderBy(desc(researchDevices.createdAt)) }));
+router.post('/research/devices', zValidator('json', researchDeviceSchema), async (c) => {
+  const auth = c.get('adminAuth' as never) as NonNullable<Awaited<ReturnType<typeof resolveAdminSession>>>;
+  const input = c.req.valid('json');
+  const [row] = await db.insert(researchDevices).values({
+    deviceUuid: input.deviceUuid, status: 'AUTHORIZED', permittedVehicleClasses: [...new Set(input.permittedVehicleClasses)],
+    expiresAt: input.expiresAt ? new Date(input.expiresAt) : null, operatorNote: input.operatorNote ?? null,
+    approvedBy: auth.administrator.id, revokedAt: null,
+  }).onConflictDoUpdate({
+    target: researchDevices.deviceUuid,
+    set: {
+      status: 'AUTHORIZED', permittedVehicleClasses: [...new Set(input.permittedVehicleClasses)],
+      expiresAt: input.expiresAt ? new Date(input.expiresAt) : null, operatorNote: input.operatorNote ?? null,
+      approvedBy: auth.administrator.id, revokedAt: null,
+    },
+  }).returning();
+  return c.json({ ok: true, device: row }, 201);
+});
+router.delete('/research/devices/:uuid', async (c) => {
+  const [row] = await db.update(researchDevices).set({ status: 'REVOKED', revokedAt: sql`now()` }).where(eq(researchDevices.deviceUuid, c.req.param('uuid'))).returning();
+  return row ? c.json({ ok: true }) : c.json({ ok: false, error: 'Research device not found.' }, 404);
+});
+
+const researchRouteSchema = z.object({
+  name: z.string().trim().min(1).max(160), city: z.string().trim().min(1).max(100),
+  routeVersion: z.string().trim().min(1).max(80),
+  geometry: z.array(z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)])).min(2).max(100_000),
+});
+const researchSiteSchema = z.object({
+  stableSiteId: z.string().trim().min(1).max(100),
+  siteType: z.enum(['POTHOLE_OR_DAMAGE', 'SPEED_BREAKER', 'JOINT_OR_DRAIN', 'RAIL_CROSSING', 'NORMAL_SECTION', 'OTHER', 'UNCERTAIN']),
+  lat: z.number().min(-90).max(90), lon: z.number().min(-180).max(180),
+  direction: z.string().trim().max(40).nullable().optional(), notes: z.string().trim().max(1000).nullable().optional(),
+});
+
+router.get('/research/routes', async (c) => c.json({ ok: true, routes: await db.select().from(researchRoutes).orderBy(desc(researchRoutes.createdAt)) }));
+router.post('/research/routes', zValidator('json', researchRouteSchema), async (c) => {
+  const auth = c.get('adminAuth' as never) as NonNullable<Awaited<ReturnType<typeof resolveAdminSession>>>;
+  const [route] = await db.insert(researchRoutes).values({ ...c.req.valid('json'), createdBy: auth.administrator.id }).returning();
+  return c.json({ ok: true, route }, 201);
+});
+router.get('/research/routes/:routeId/sites', async (c) => {
+  const routeId = Number(c.req.param('routeId'));
+  return c.json({ ok: true, sites: await db.select().from(researchSites).where(eq(researchSites.routeId, routeId)).orderBy(researchSites.stableSiteId) });
+});
+router.post('/research/routes/:routeId/sites', zValidator('json', researchSiteSchema), async (c) => {
+  const routeId = Number(c.req.param('routeId'));
+  const [site] = await db.insert(researchSites).values({ routeId, ...c.req.valid('json') }).returning();
+  return c.json({ ok: true, site }, 201);
+});
+
+router.put(
+  '/collection/markers/:id/match',
+  zValidator('json', z.object({ routeId: z.number().int().positive(), siteId: z.number().int().positive(), notes: z.string().trim().max(1000).optional() })),
+  async (c) => {
+    const auth = c.get('adminAuth' as never) as NonNullable<Awaited<ReturnType<typeof resolveAdminSession>>>;
+    const input = c.req.valid('json');
+    const [site] = await db.select().from(researchSites).where(and(eq(researchSites.id, input.siteId), eq(researchSites.routeId, input.routeId))).limit(1);
+    if (!site) return c.json({ ok: false, error: 'Research site does not belong to the selected route.' }, 400);
+    const [marker] = await db.select().from(collectionMarkers).where(eq(collectionMarkers.id, c.req.param('id'))).limit(1);
+    if (!marker) return c.json({ ok: false, error: 'Collection marker not found.' }, 404);
+    const [updated] = await db.update(collectionMarkers).set({
+      routeId: input.routeId, siteId: input.siteId, matchStatus: 'MATCHED',
+      matchDiagnostics: {
+        ...(marker.matchDiagnostics as Record<string, unknown>), matchedBy: auth.administrator.id,
+        matchedAt: new Date().toISOString(), notes: input.notes ?? null,
+      },
+    }).where(eq(collectionMarkers.id, marker.id)).returning();
+    return c.json({ ok: true, marker: updated });
+  },
+);
+
+const labelSchema = z.object({
+  windowId: z.string().uuid(), taxonomyVersion: z.literal('impact-taxonomy-v1'),
+  primaryLabel: z.enum(['USABLE_NORMAL', 'GENUINE_ROAD_IMPACT', 'HANDLING_OR_MANEUVER_ARTIFACT', 'POTHOLE_OR_DAMAGE', 'SPEED_BREAKER', 'JOINT_OR_DRAIN', 'RAIL_CROSSING', 'OTHER_IMPACT', 'UNCERTAIN', 'UNUSABLE_SENSOR_DATA']),
+  secondaryAttributes: z.record(z.string().max(60), z.union([z.string().max(120), z.number(), z.boolean(), z.null()])).default({}),
+  confidence: z.number().min(0).max(1),
+  evidenceSource: z.enum(['SURVEYED_SITE_MARKER', 'REPEAT_PASS', 'MANUAL_ARTIFACT', 'OTHER']),
+  notes: z.string().trim().max(2000).nullable().optional(),
+});
+
+router.get(
+  '/collection/label-queue',
+  zValidator('query', z.object({ vehicleClass: z.enum(['CAR', 'BIKE', 'AUTO_RICKSHAW', 'BUS', 'TRUCK']).optional() })),
+  async (c) => {
+    const { vehicleClass } = c.req.valid('query');
+    const auth = c.get('adminAuth' as never) as NonNullable<Awaited<ReturnType<typeof resolveAdminSession>>>;
+    const rows = await db.execute(sql`
+      SELECT cw.id AS "windowId",cw.encounter_id AS "encounterId",cw.kind,cw.started_at AS "startedAt",
+             cw.trigger_reasons AS "triggerReasons",cw.features,cw.label_state AS "labelState",
+             cw.lat,cw.lon,cw.accuracy_m AS "accuracyM",cs.id AS "sessionId",
+             cs.vehicle_class AS "vehicleClass",cs.vehicle_subtype AS "vehicleSubtype",cs.mount_position AS "mountPosition",
+             (SELECT jsonb_agg(jsonb_build_object('primaryLabel',cl.primary_label,'reviewerId',cl.reviewer_id,'confidence',cl.confidence,'reviewRound',cl.review_round) ORDER BY cl.created_at)
+                FROM collection_labels cl WHERE cl.window_id=cw.id) AS reviews
+      FROM collection_windows cw JOIN collection_sessions cs ON cs.id=cw.session_id
+      WHERE cs.mode='CONTROLLED_RESEARCH' AND cs.quality_status='RECEIVED'
+        AND cw.label_state IN ('UNLABELLED','IN_REVIEW','DISPUTED')
+        AND (cw.label_state='DISPUTED' OR NOT EXISTS (
+          SELECT 1 FROM collection_labels own_review
+          WHERE own_review.window_id=cw.id AND own_review.reviewer_id=${auth.administrator.id}
+        ))
+        AND (${vehicleClass ?? null}::text IS NULL OR cs.vehicle_class=${vehicleClass ?? null})
+      ORDER BY cw.started_at LIMIT 50
+    `);
+    return c.json({ ok: true, windows: rows });
+  },
+);
+
+router.post('/collection/labels', zValidator('json', labelSchema), async (c) => {
+  const auth = c.get('adminAuth' as never) as NonNullable<Awaited<ReturnType<typeof resolveAdminSession>>>;
+  const input = c.req.valid('json');
+  const [window] = await db.select().from(collectionWindows).where(eq(collectionWindows.id, input.windowId)).limit(1);
+  if (!window) return c.json({ ok: false, error: 'Collection window not found.' }, 404);
+  const priorReview = await db.execute(sql`
+    SELECT coalesce(max(review_round), 0)::int AS "lastRound"
+    FROM collection_labels
+    WHERE window_id=${input.windowId} AND reviewer_id=${auth.administrator.id}
+  `) as unknown as Array<{ lastRound: number }>;
+  const reviewRound = (priorReview[0]?.lastRound ?? 0) + 1;
+  if (reviewRound > 10) return c.json({ ok: false, error: 'Maximum review rounds reached for this window.' }, 409);
+  const [label] = await db.insert(collectionLabels).values({
+    ...input, reviewRound, notes: input.notes ?? null, reviewerId: auth.administrator.id,
+  }).returning();
+  const reviews = await db.execute(sql`
+    WITH latest AS (
+      SELECT DISTINCT ON (cl.reviewer_id) cl.reviewer_id, cl.primary_label
+      FROM collection_labels cl
+      WHERE cl.window_id=${input.windowId} AND cl.taxonomy_version=${input.taxonomyVersion}
+      ORDER BY cl.reviewer_id, cl.review_round DESC, cl.created_at DESC
+    )
+    SELECT latest.primary_label AS "primaryLabel", count(*)::int AS reviewers
+    FROM latest GROUP BY latest.primary_label ORDER BY reviewers DESC
+  `) as unknown as Array<{ primaryLabel: string; reviewers: number }>;
+  const consensus = resolveLabelConsensus(reviews.flatMap((row) => Array(row.reviewers).fill(row.primaryLabel)));
+  await db.update(collectionWindows).set({
+    labelState: consensus.labelState,
+    exportEligible: consensus.exportEligible,
+  }).where(eq(collectionWindows.id, input.windowId));
+  return c.json({ ok: true, label, labelState: consensus.labelState }, 201);
+});
+
+router.get(
+  '/collection/export',
+  zValidator('query', z.object({ vehicleClass: z.enum(['CAR', 'BIKE', 'AUTO_RICKSHAW', 'BUS', 'TRUCK']) })),
+  async (c) => {
+    const { vehicleClass } = c.req.valid('query');
+    const sourceRows = await db.execute(sql`
+      SELECT cw.id AS "windowId",cw.encounter_id AS "encounterId",cw.kind,cw.feature_version AS "featureVersion",
+             cw.features,cw.started_at AS "startedAt",cw.ended_at AS "endedAt",cs.id AS "sessionId",
+             cs.vehicle_class AS "vehicleClass",cs.vehicle_subtype AS "vehicleSubtype",cs.profile_version AS "profileVersion",
+             cs.mount_position AS "mountPosition",d.device_uuid AS "deviceUuid",d.model AS "deviceModel",
+             (SELECT cl.primary_label FROM collection_labels cl WHERE cl.window_id=cw.id ORDER BY cl.review_round DESC,cl.created_at DESC LIMIT 1) AS label,
+             (SELECT ro.object_key FROM collection_raw_objects ro WHERE ro.window_id=cw.id AND ro.state='VERIFIED' LIMIT 1) AS "rawObjectKey",
+             (SELECT ro.sha256 FROM collection_raw_objects ro WHERE ro.window_id=cw.id AND ro.state='VERIFIED' LIMIT 1) AS "rawObjectSha256"
+      FROM collection_windows cw
+      JOIN collection_sessions cs ON cs.id=cw.session_id
+      JOIN devices d ON d.id=cs.device_id
+      WHERE cs.vehicle_class=${vehicleClass} AND cs.mode='CONTROLLED_RESEARCH' AND cs.quality_status='RECEIVED'
+        AND cs.upload_state='COMPLETE' AND cw.export_eligible=true AND cw.label_state='AGREED'
+      ORDER BY cw.id
+    `);
+    if (sourceRows.some((row) => (row as { vehicleClass: string }).vehicleClass !== vehicleClass)) {
+      return c.json({ ok: false, error: 'Mixed-vehicle export invariant failed.' }, 500);
+    }
+    const pseudonymSalt = process.env.COLLECTION_EXPORT_PSEUDONYM_SALT;
+    if (!pseudonymSalt) return c.json({ ok: false, error: 'Dataset export pseudonym salt is not configured.' }, 503);
+    const rows = sourceRows.map((row) => {
+      const typed = row as Record<string, unknown> & { deviceUuid: string };
+      const { deviceUuid, ...safe } = typed;
+      return {
+        ...safe,
+        devicePseudonym: createHash('sha256').update(`${pseudonymSalt}:${deviceUuid}`).digest('hex').slice(0, 24),
+      };
+    });
+    const datasetHash = createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+    return c.json({
+      ok: true, schemaVersion: 1, vehicleClass, generatedAt: new Date().toISOString(), datasetHash,
+      windowCount: rows.length, windows: rows,
+    }, 200, { 'Content-Disposition': `attachment; filename="betterroads-${vehicleClass.toLowerCase()}-${datasetHash.slice(0, 12)}.json"` });
+  },
+);
 
 router.get('/feedback', async (c) => {
   const rows = await db.select()

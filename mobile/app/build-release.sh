@@ -35,30 +35,14 @@ BR_UPLOAD_STORE_FILE=betterroads-upload.jks
 BR_UPLOAD_KEY_ALIAS=betterroads-upload
 BR_UPLOAD_STORE_PASSWORD=$PW
 BR_UPLOAD_KEY_PASSWORD=$PW
+reactNativeArchitectures=armeabi-v7a,arm64-v8a
+android.enableMinifyInReleaseBuilds=true
+android.enableShrinkResourcesInReleaseBuilds=true
+expo.gif.enabled=false
+expo.webp.animated=false
 EOF
 
-node - <<'JS'
-const fs = require('fs');
-const p = 'android/app/build.gradle';
-let s = fs.readFileSync(p, 'utf8');
-s = s.replace(/signingConfigs\s*\{\s*\n(\s*)debug\s*\{/, (m, ind) =>
-  m.replace(/debug\s*\{$/,
-`release {
-${ind}    storeFile file(BR_UPLOAD_STORE_FILE)
-${ind}    storePassword BR_UPLOAD_STORE_PASSWORD
-${ind}    keyAlias BR_UPLOAD_KEY_ALIAS
-${ind}    keyPassword BR_UPLOAD_KEY_PASSWORD
-${ind}}
-${ind}debug {`));
-let patched = false;
-s = s.replace(/release\s*\{([^}]*?)signingConfig signingConfigs\.debug/, (m, body) => {
-  patched = true;
-  return `release {${body}signingConfig signingConfigs.release`;
-});
-if (!patched) throw new Error('release buildType signing patch failed');
-fs.writeFileSync(p, s);
-console.log('signing config patched');
-JS
+node patch-android-release.mjs android/app/build.gradle
 
 # lintVital* is skipped: it re-analyzes every library module (metaspace-heavy)
 # and gates nothing we ship — this is a sideload/Play upload, not a lint gate.
@@ -80,5 +64,6 @@ else
   cp app/build/outputs/bundle/release/app-release.aab "/proj/release/BetterRoads-v${VERSION}_${TIMESTAMP}.aab"
   cp app/build/outputs/apk/release/app-release.apk "/proj/release/BetterRoads.apk"
 fi
+node /proj/analyze-apk.mjs app/build/outputs/apk/release/app-release.apk
 echo "══════ ARTIFACTS ══════"
 ls -la /proj/release/
