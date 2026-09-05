@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
@@ -124,7 +124,7 @@ export async function bootstrapAdministrator(): Promise<void> {
     username: username.trim(),
     displayName: (process.env.ADMIN_BOOTSTRAP_NAME ?? username).trim(),
     email: process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase() || null,
-    passwordHash: await hashPassword(createHash('sha256').update(password).digest('hex')),
+    passwordHash: await hashPassword(password),
   }).onConflictDoNothing();
   console.log(`[auth] bootstrapped administrator ${username}`);
 }

@@ -15,8 +15,8 @@ import {
 import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
-import { State, City } from 'country-state-city';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { INDIA_STATES, indiaCitiesForState } from '@/indiaLocations';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { radii, theme, typography } from '@/theme';
 import { FlagRule } from '@/components/FlagRule';
@@ -75,13 +75,13 @@ export function ProfileEditor({
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
-  const stateItems = State.getStatesOfCountry('IN').map((s) => ({
+  const stateItems = INDIA_STATES.map((s) => ({
     label: s.name,
     value: s.isoCode,
   }));
 
   const cityItems = selectedStateCode
-    ? City.getCitiesOfState('IN', selectedStateCode).map((c) => ({
+    ? indiaCitiesForState(selectedStateCode).map((c) => ({
         label: c.name,
         value: c.name,
       }))

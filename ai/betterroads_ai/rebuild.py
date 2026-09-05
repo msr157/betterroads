@@ -235,6 +235,8 @@ JOURNEYS_SQL = """
 SELECT j.id, j.ended_at, r.payload
 FROM journeys j
 JOIN journey_raw r ON r.journey_id = j.id
+WHERE j.accepted_at IS NOT NULL
+  AND j.quality_status IN ('LEGACY_APPROVED', 'APPROVED')
 ORDER BY j.ended_at, j.id
 """
 

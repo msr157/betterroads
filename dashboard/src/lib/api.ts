@@ -117,6 +117,12 @@ export interface JourneyRow {
   rqiScore: number;
   eventCount: number;
   acceptedAt: string | null;
+  qualityStatus: 'LEGACY_APPROVED' | 'APPROVED' | 'QUARANTINED';
+  qualityReasons: string[];
+  qualityDiagnostics: Record<string, number>;
+  detectionAlgorithmVersion: string | null;
+  movingDurationS: number | null;
+  stationaryDurationS: number | null;
   deviceUuid: string;
   devicePlatform: string;
   deviceModel: string | null;
@@ -199,4 +205,94 @@ export interface CitiesResponse {
   generatedAt: string;
   cities: CityRow[];
   recent: RecentJourneyRow[];
+}
+
+export interface CollectionSessionRow {
+  id: string;
+  vehicleClass: 'CAR' | 'BIKE' | 'AUTO_RICKSHAW' | 'BUS' | 'TRUCK';
+  vehicleSubtype: string;
+  mountPosition: string;
+  profileVersion: string;
+  mode: 'STANDARD' | 'CONTROLLED_RESEARCH';
+  uploadState: 'UPLOADING' | 'COMPLETE' | 'CANCELLED';
+  qualityStatus: 'RECEIVED' | 'QUARANTINED' | null;
+  qualityReasons: string[];
+  acceptedDistanceM: number | null;
+  startedAt: string;
+  completedAt: string | null;
+  deviceUuid: string;
+  deviceModel: string | null;
+  windowCount: number;
+  rawObjectCount: number;
+}
+
+export interface CollectionSessionsResponse {
+  ok: true;
+  sessions: CollectionSessionRow[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface CollectionSessionDetailResponse {
+  ok: true;
+  session: Record<string, unknown>;
+  windows: Array<Record<string, unknown>>;
+  rawObjects: Array<Record<string, unknown>>;
+  markers: Array<Record<string, unknown>>;
+}
+
+export interface LabelQueueWindow {
+  windowId: string;
+  encounterId: string;
+  sessionId: string;
+  kind: string;
+  startedAt: string;
+  triggerReasons: string[];
+  features: Record<string, unknown>;
+  labelState: 'UNLABELLED' | 'IN_REVIEW' | 'DISPUTED';
+  lat: number | null;
+  lon: number | null;
+  accuracyM: number | null;
+  vehicleClass: string;
+  vehicleSubtype: string;
+  mountPosition: string;
+  reviews: Array<{ primaryLabel: string; reviewerId: number; confidence: number; reviewRound: number }> | null;
+}
+
+export interface LabelQueueResponse {
+  ok: true;
+  windows: LabelQueueWindow[];
+}
+
+export interface ResearchDeviceRow {
+  deviceUuid: string;
+  status: 'AUTHORIZED' | 'REVOKED';
+  permittedVehicleClasses: string[];
+  expiresAt: string | null;
+  operatorNote: string | null;
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+export interface ResearchRouteRow {
+  id: number;
+  name: string;
+  city: string;
+  routeVersion: string;
+  geometry: Array<[number, number]>;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface ResearchSiteRow {
+  id: number;
+  routeId: number;
+  stableSiteId: string;
+  siteType: string;
+  lat: number;
+  lon: number;
+  direction: string | null;
+  notes: string | null;
+  active: boolean;
 }

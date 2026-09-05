@@ -1,4 +1,4 @@
-# Travel Data Contract — schemaVersion 1
+# Travel Data Contract — schemaVersion 1 and 2
 
 The mobile app fires **one** API call per completed journey (Point A → Point B),
 sending the full collected dataset in a single batch (~10 MB typical, 15 MB hard cap).
@@ -16,8 +16,9 @@ unowned and are not claimed when a person later signs in. Retrying a journey ID
 owned by another account returns HTTP 409.
 
 Uploads are **idempotent on `journey.id`**: the app can retry the same payload
-safely; the server replies `{ ok: true, duplicate: true }` only for an
-already-accepted journey owned by the same account. Ingestion is transactional,
+safely. Every successful response includes `status: "accepted" | "duplicate" |
+"quarantined"`. A duplicate quarantined journey returns its stored quarantine
+reasons. Ingestion is transactional,
 and the server sets `accepted_at` after raw storage and road aggregation finish.
 Only accepted authenticated journeys are eligible for contributor rankings.
 
@@ -25,7 +26,7 @@ Only accepted authenticated journeys are eligible for contributor rankings.
 
 ```jsonc
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "device": {
     "uuid": "0b6f3c1e-8a2e-4b7d-9c3f-1d2e3f4a5b6c",  // install-time UUID
     "platform": "android",                            // "android" | "ios"
@@ -44,7 +45,17 @@ Only accepted authenticated journeys are eligible for contributor rankings.
     "baseFloorRms": 0.35,          // optional; vehicle vibration floor subtracted on-device
     "rqiScore": 71.2,              // 0–100 journey-level Road Quality Index
     "startLat": 19.0596, "startLon": 72.8295,
-    "endLat":   19.0330, "endLon":  72.8397
+    "endLat":   19.0330, "endLon":  72.8397,
+    "movingDurationS": 1510,
+    "stationaryDurationS": 290,
+    "detectionAlgorithmVersion": "motion-v2.0",
+    "fixQuality": {
+      "reliableFixCount": 740,
+      "rejectedFixCount": 8,
+      "meanAccuracyM": 9.4,
+      "bestAccuracyM": 3.0,
+      "worstAccuracyM": 24.0
+    }
   },
   "segments": [                    // ~300 m stretches scored on-device
     {
@@ -72,24 +83,31 @@ Only accepted authenticated journeys are eligible for contributor rankings.
     }
   ],
   "path": [[19.0596, 72.8295, 1754000000000], ...],  // optional downsampled GPS trace
+  "locationSamples": [
+    { "lat": 19.0596, "lon": 72.8295, "timestamp": 1754000000000, "accuracyM": 8, "speedKmh": 21 }
+  ],
   "sensorWindows": [ { /* opaque raw windows */ } ]   // optional; stored verbatim
 }
 ```
 
-`path` and `sensorWindows` are not interpreted by the ingestion endpoint —
-they are stored verbatim in `journey_raw` so the AI Core Engine can reprocess
-every historical journey as detection and map-matching improve.
+Schema v1 remains accepted. Schema v2 requires its motion durations, algorithm
+version, fix summary, and accuracy-bearing `locationSamples`. The tuple `path`
+is retained for replay compatibility. The full payload is stored verbatim in
+`journey_raw`.
 
 ## Response
 
 ```jsonc
-{ "ok": true, "duplicate": false, "journeyId": "...", "segmentsProcessed": 41, "eventsStored": 7 }
+{ "ok": true, "status": "accepted", "duplicate": false, "journeyId": "...", "segmentsProcessed": 41, "eventsStored": 7 }
 ```
 
-Errors: `400` validation (message names the offending field), `409` ownership
+Quarantine is a terminal successful ingestion and returns
+`status: "quarantined"` plus `quarantineReasons`; it never writes events,
+segments, snapshots, leaderboard credit, or public-map changes. Errors: `400`
+validation (message names the offending field), `409` ownership
 or incomplete-ingestion conflict, `413` payload too large, `429` rate-limited,
-and `500` server error. The app retains both validation failures and conflicts
-for inspection instead of reporting them as uploaded; transient failures retry.
+`422` impossible telemetry, `413` payload too large, `429` rate-limited, and
+`500` server error. The app retries only transient failures.
 
 ## Server-side processing (v1)
 

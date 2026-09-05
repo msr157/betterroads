@@ -8,6 +8,10 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL!,
   },
+  migrations: {
+    schema: 'public',
+    table: 'betterroads_drizzle_migrations',
+  },
   verbose: true,
   strict: true,
 });

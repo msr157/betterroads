@@ -2,20 +2,23 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { eq, sql } from 'drizzle-orm';
+import { and, between, eq, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import {
   devices,
   journeyRaw,
   journeys,
+  potholeHotspots,
   roadEvents,
   roadSegments,
   segmentSnapshots,
 } from '../db/schema.js';
 import { ingestRateLimitMiddleware } from '../middleware/rateLimit.js';
 import { cellCenter, mergeRqi, segmentKeyFor } from '../lib/roadSegments.js';
+import { distanceMetres, recoveredEventAccuracy } from '../lib/potholeHotspots.js';
 import { isInIndia } from '../lib/india.js';
 import { resolveUserSession } from '../lib/auth.js';
+import { evaluateJourneyQuality } from '../lib/journeyQuality.js';
 
 /**
  * POST /user/mobile/traveldata — the mobile app's single end-of-journey
@@ -27,7 +30,7 @@ import { resolveUserSession } from '../lib/auth.js';
 
 const router = new Hono();
 
-// ─── Contract (schemaVersion 1) ───────────────────────────────────────────────
+// ─── Backward-compatible contract (schemaVersion 1 | 2) ─────────────────────
 
 const VEHICLE_TYPES = ['CAR', 'BIKE', 'AUTO_RICKSHAW', 'BUS', 'TRUCK', 'OTHER'] as const;
 const EVENT_TYPES = ['POTHOLE', 'BUMP', 'SPEED_BREAKER', 'SWERVE', 'MANUAL_REPORT'] as const;
@@ -70,7 +73,7 @@ const eventSchema = z.object({
 });
 
 const travelDataSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   device: z.object({
     /** Install-time UUID minted by the app (NOT a MAC address). */
     uuid: z.string().uuid(),
@@ -93,6 +96,16 @@ const travelDataSchema = z.object({
     startLon: lonSchema,
     endLat: latSchema,
     endLon: lonSchema,
+    movingDurationS: z.number().int().min(0).max(172_800).optional(),
+    stationaryDurationS: z.number().int().min(0).max(172_800).optional(),
+    detectionAlgorithmVersion: z.string().min(1).max(80).optional(),
+    fixQuality: z.object({
+      reliableFixCount: z.number().int().min(0),
+      rejectedFixCount: z.number().int().min(0),
+      meanAccuracyM: z.number().min(0),
+      bestAccuracyM: z.number().min(0),
+      worstAccuracyM: z.number().min(0),
+    }).optional(),
   }),
   /** ~300 m journey segments as scored on-device. */
   segments: z.array(segmentSchema).max(10_000),
@@ -103,7 +116,20 @@ const travelDataSchema = z.object({
    * AI engine; not interpreted by this endpoint.
    */
   path: z.array(z.tuple([latSchema, lonSchema, epochMs])).max(100_000).optional(),
+  locationSamples: z.array(z.object({
+    lat: latSchema,
+    lon: lonSchema,
+    timestamp: epochMs,
+    accuracyM: z.number().min(0).max(1_000),
+    speedKmh: z.number().min(0).max(400).optional(),
+  })).max(100_000).optional(),
   sensorWindows: z.array(z.record(z.unknown())).max(200_000).optional(),
+}).superRefine((payload, ctx) => {
+  if (payload.schemaVersion !== 2) return;
+  for (const key of ['movingDurationS', 'stationaryDurationS', 'detectionAlgorithmVersion', 'fixQuality'] as const) {
+    if (payload.journey[key] === undefined) ctx.addIssue({ code: 'custom', path: ['journey', key], message: `Required for schemaVersion 2.` });
+  }
+  if (!payload.locationSamples) ctx.addIssue({ code: 'custom', path: ['locationSamples'], message: 'Required for schemaVersion 2.' });
 });
 
 export type TravelDataPayload = z.infer<typeof travelDataSchema>;
@@ -154,7 +180,7 @@ router.post(
     try {
       // ── Idempotency: same journeyId → acknowledge without re-ingesting ────
       const existing = await db
-        .select({ id: journeys.id, userId: journeys.userId, acceptedAt: journeys.acceptedAt })
+        .select({ id: journeys.id, userId: journeys.userId, acceptedAt: journeys.acceptedAt, qualityStatus: journeys.qualityStatus, qualityReasons: journeys.qualityReasons })
         .from(journeys)
         .where(eq(journeys.id, journey.id))
         .limit(1);
@@ -162,10 +188,13 @@ router.post(
         if (existing[0].userId !== userId) {
           return c.json({ ok: false, error: 'Journey ID belongs to another account.' }, 409);
         }
+        if (existing[0].qualityStatus === 'QUARANTINED') {
+          return c.json({ ok: true, status: 'quarantined', duplicate: true, journeyId: journey.id, quarantineReasons: existing[0].qualityReasons });
+        }
         if (!existing[0].acceptedAt) {
           return c.json({ ok: false, error: 'A previous ingestion of this journey did not complete. Contact support.' }, 409);
         }
-        return c.json({ ok: true, duplicate: true, journeyId: journey.id });
+        return c.json({ ok: true, status: 'duplicate', duplicate: true, journeyId: journey.id });
       }
 
       const [ownedDevice] = await db.select({ userId: devices.userId }).from(devices).where(eq(devices.deviceUuid, device.uuid)).limit(1);
@@ -173,6 +202,12 @@ router.post(
         return c.json({ ok: false, error: 'This device is linked to another account.' }, 409);
       }
 
+      const quality = evaluateJourneyQuality(payload);
+      const hardFailure = quality.reasons.find((reason) =>
+        reason === 'IMPOSSIBLE_LOCATION_JUMP' || reason === 'LOCATION_TIMESTAMPS_OUT_OF_ORDER');
+      if (hardFailure) {
+        return c.json({ ok: false, status: 'rejected', error: `Impossible journey telemetry: ${hardFailure}.` }, 422);
+      }
       const result = await db.transaction(async (tx) => {
 
       // ── Device upsert ──────────────────────────────────────────────────────
@@ -219,12 +254,55 @@ router.post(
         endLat: journey.endLat,
         endLon: journey.endLon,
         schemaVersion: payload.schemaVersion,
+        qualityStatus: quality.status,
+        qualityReasons: quality.reasons,
+        qualityDiagnostics: quality.diagnostics,
+        detectionAlgorithmVersion: journey.detectionAlgorithmVersion ?? null,
+        movingDurationS: journey.movingDurationS ?? null,
+        stationaryDurationS: journey.stationaryDurationS ?? null,
       });
 
       await tx.insert(journeyRaw).values({ journeyId: journey.id, payload });
 
+      if (quality.status === 'QUARANTINED') {
+        return {
+          ok: true,
+          status: 'quarantined' as const,
+          duplicate: false,
+          journeyId: journey.id,
+          quarantineReasons: quality.reasons,
+          segmentsProcessed: 0,
+          eventsStored: 0,
+        };
+      }
+
       // ── Events (segment-keyed for map queries) ────────────────────────────
       if (payload.events.length > 0) {
+        const eventMetadata = new Map<string, { accuracyM: number | null; locationQuality: string | null; potholeHotspotId: string | null }>();
+        for (const event of payload.events) {
+          const recovered = recoveredEventAccuracy(event, payload.locationSamples ?? []);
+          let potholeHotspotId: string | null = null;
+          if (event.type === 'POTHOLE') {
+            const key = segmentKeyFor(event.lat, event.lon);
+            const latDelta = 20 / 110_540;
+            const lonDelta = 20 / (111_320 * Math.cos(event.lat * Math.PI / 180));
+            const candidates = await tx.select().from(potholeHotspots).where(and(
+              between(potholeHotspots.centerLat, event.lat - latDelta, event.lat + latDelta),
+              between(potholeHotspots.centerLon, event.lon - lonDelta, event.lon + lonDelta),
+            ));
+            const nearest = candidates
+              .map((hotspot) => ({ hotspot, distance: distanceMetres(event, { lat: hotspot.centerLat, lon: hotspot.centerLon }) }))
+              .filter(({ distance }) => distance <= 20)
+              .sort((a, b) => a.distance - b.distance)[0]?.hotspot;
+            potholeHotspotId = nearest?.id ?? `ph:${event.id}`;
+            if (nearest) {
+              await tx.update(potholeHotspots).set({ lastDetectedAt: new Date(event.timestamp) }).where(eq(potholeHotspots.id, nearest.id));
+            } else {
+              await tx.insert(potholeHotspots).values({ id: potholeHotspotId, centerLat: event.lat, centerLon: event.lon, segmentKey: key, firstDetectedAt: new Date(event.timestamp), lastDetectedAt: new Date(event.timestamp) });
+            }
+          }
+          eventMetadata.set(event.id, { accuracyM: recovered?.accuracyM ?? null, locationQuality: recovered ? 'GPS_SAMPLE_RECOVERED' : null, potholeHotspotId });
+        }
         await tx.insert(roadEvents).values(
           payload.events.map((e) => ({
             id: e.id,
@@ -241,6 +319,9 @@ router.post(
             accelZ: e.accelZ ?? null,
             gyroZ: e.gyroZ ?? null,
             heading: e.heading ?? null,
+            accuracyM: eventMetadata.get(e.id)?.accuracyM ?? null,
+            locationQuality: eventMetadata.get(e.id)?.locationQuality ?? null,
+            potholeHotspotId: eventMetadata.get(e.id)?.potholeHotspotId ?? null,
             segmentKey: segmentKeyFor(e.lat, e.lon),
           })),
           // Client-minted IDs: a replayed batch (or one that half-succeeded
@@ -324,6 +405,7 @@ router.post(
 
       return {
         ok: true,
+        status: 'accepted' as const,
         duplicate: false,
         journeyId: journey.id,
         segmentsProcessed: payload.segments.length,

@@ -1,4 +1,7 @@
-"""Speed-breaker reclassification.
+"""Legacy heuristic speed-breaker reclassification.
+
+This is not an ML model and is not permitted to classify collection-v3
+windows. It remains only for accepted legacy v1/v2 road events.
 
 The on-device detector cannot tell a speed breaker from a pothole: both are a
 vertical jolt. But across journeys they behave differently:
@@ -227,6 +230,8 @@ CANDIDATE_SQL = """
 SELECT e.id, e.segment_key, e.type, e.severity, e.lat, e.lon, d.id AS device_id
 FROM road_events e
 JOIN journeys j ON j.id = e.journey_id
+  AND j.accepted_at IS NOT NULL
+  AND j.quality_status IN ('LEGACY_APPROVED', 'APPROVED')
 JOIN devices  d ON d.id = j.device_id
 WHERE e.type IN ('BUMP', 'POTHOLE')
 """

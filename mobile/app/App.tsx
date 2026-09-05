@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
-import { State } from 'country-state-city';
+import { INDIA_STATES } from '@/indiaLocations';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { JourneyRecorder } from '@/journeyRecorder';
-import type { EngineSnapshot } from '@/sensorEngine';
-import { flushQueue, pendingCount, uploadOrQueue } from '@/upload';
-import type { VehicleType } from '@/types';
+import { JourneyRecorder, type CollectionRecorderSnapshot } from '@/journeyRecorder';
+import { flushQueue as flushLegacyQueue, pendingCount as legacyPendingCount } from '@/upload';
+import { collectionProfileIsCurrent, controlledCollectionIsAuthorized, flushCollectionQueue, pendingCollectionCount, uploadCollectionOrQueue } from '@/collection/queue';
+import { profileFor } from '@/collection/vehicleProfiles';
+import type { CollectionMode, VehicleType } from '@/types';
+import { getDeviceUuid } from '@/deviceId';
 import { GOOGLE_AUTH_ENABLED } from '@/config';
 import {
   enterBetterRoads,
@@ -54,7 +56,7 @@ async function detectUserLocation(): Promise<{
       ''
     ).trim() || null;
 
-    const allStates = State.getStatesOfCountry('IN');
+    const allStates = INDIA_STATES;
     const matchedState = allStates.find(
       (s) =>
         s.name.toLowerCase() === regionName.toLowerCase() ||
@@ -73,7 +75,9 @@ async function detectUserLocation(): Promise<{
 export default function App() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [vehicle, setVehicle] = useState<VehicleType>('CAR');
-  const [snap, setSnap] = useState<EngineSnapshot | null>(null);
+  const [collectionMode, setCollectionMode] = useState<CollectionMode>('STANDARD');
+  const [installationId, setInstallationId] = useState('');
+  const [snap, setSnap] = useState<CollectionRecorderSnapshot | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(0);
   const [booting, setBooting] = useState(true);
@@ -83,6 +87,12 @@ export default function App() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const initialProfile = profileFor('CAR');
+  const [vehicleSubtype, setVehicleSubtype] = useState(initialProfile.subtypes[0]!);
+  const [mountPosition, setMountPosition] = useState(initialProfile.mountPositions[0]!);
+  const [vehicleMetadata, setVehicleMetadata] = useState<Record<string, string | number | boolean | null>>(
+    defaultVehicleMetadata('CAR'),
+  );
 
   const recorderRef = useRef<JourneyRecorder | null>(null);
 
@@ -90,10 +100,14 @@ export default function App() {
   useEffect(() => {
     void (async () => {
       try {
+        setInstallationId(await getDeviceUuid());
         const restored = await restoreUser();
         setUser(restored);
-        if (restored) await flushQueue();
-        setPending(await pendingCount());
+        if (restored) {
+          await flushLegacyQueue();
+          await flushCollectionQueue();
+        }
+        setPending((await legacyPendingCount()) + pendingCollectionCount());
       } catch {
         // network or storage error on boot
       } finally {
@@ -139,8 +153,9 @@ export default function App() {
         setUser(draftProfile);
         setIsInitialSetup(true);
         setEditingProfile(true);
-        await flushQueue();
-        setPending(await pendingCount());
+        await flushLegacyQueue();
+        await flushCollectionQueue();
+        setPending((await legacyPendingCount()) + pendingCollectionCount());
       }
     } catch (e: any) {
       if (e.code !== 'SIGN_IN_CANCELLED') {
@@ -179,8 +194,9 @@ export default function App() {
       // Immediately open Profile Editor for onboarding setup
       setIsInitialSetup(true);
       setEditingProfile(true);
-      await flushQueue();
-      setPending(await pendingCount());
+      await flushLegacyQueue();
+      await flushCollectionQueue();
+      setPending((await legacyPendingCount()) + pendingCollectionCount());
     } catch (e) {
       setAuthError(
         e instanceof Error ? e.message : 'Could not enter BetterRoads.',
@@ -192,34 +208,49 @@ export default function App() {
 
   const startJourney = useCallback(async () => {
     setMessage(null);
+    const profile = profileFor(vehicle);
+    if (!(await collectionProfileIsCurrent(vehicle, profile.profileVersion))) {
+      setMessage('This vehicle collection profile has changed. Update the app before recording.');
+      return;
+    }
+    if (collectionMode === 'CONTROLLED_RESEARCH' && !(await controlledCollectionIsAuthorized(vehicle))) {
+      setMessage('This installation is not authorized for controlled research in the selected vehicle. Ask an administrator to authorize its installation UUID first.');
+      return;
+    }
     const hasPermission = await JourneyRecorder.requestPermissions();
     if (!hasPermission) {
       setMessage('Location permission is required to record road quality.');
       return;
     }
-    const recorder = new JourneyRecorder(vehicle);
+    const recorder = new JourneyRecorder({
+      mode: collectionMode,
+      vehicleClass: vehicle,
+      vehicleSubtype,
+      vehicleMetadata,
+      mountPosition,
+    });
     recorderRef.current = recorder;
     await recorder.start();
     setSnap(null);
     setPhase('recording');
-  }, [vehicle]);
+  }, [collectionMode, mountPosition, vehicle, vehicleMetadata, vehicleSubtype]);
 
   const stopJourney = useCallback(async () => {
     const recorder = recorderRef.current;
     if (!recorder) return;
     setPhase('uploading');
 
-    const payload = await recorder.stop();
+    const prepared = await recorder.stop();
     recorderRef.current = null;
 
-    if (!payload) {
+    if (!prepared) {
       setMessage('No GPS fix during this trip — nothing to upload.');
       setPhase('idle');
       return;
     }
 
-    const result = await uploadOrQueue(payload);
-    setPending(await pendingCount());
+    const result = await uploadCollectionOrQueue(prepared);
+    setPending((await legacyPendingCount()) + pendingCollectionCount());
 
     if (result === 'auth-expired') {
       setMessage(
@@ -228,11 +259,13 @@ export default function App() {
       setUser(null);
     } else if (result === 'rejected') {
       setMessage(
-        'The server rejected this journey. It remains saved on this device; contact support before removing it.',
+        'The server rejected this journey. It will not be retried.',
       );
+    } else if (result === 'quarantined') {
+      setMessage('Journey received for diagnostics, but it did not affect public road scores.');
     } else if (result === 'uploaded') {
       setMessage(
-        `Journey uploaded — ${payload.segments.length} road segments, ${payload.events.length} events logged.`,
+        `Collection uploaded — ${prepared.payload.featureWindows.length} sensor windows received for research.`,
       );
     } else {
       setMessage(
@@ -296,7 +329,21 @@ export default function App() {
       <JourneyDashboard
         user={user}
         vehicle={vehicle}
-        onSelectVehicle={setVehicle}
+        onSelectVehicle={(next) => {
+          const profile = profileFor(next);
+          setVehicle(next);
+          setVehicleSubtype(profile.subtypes[0] ?? 'OTHER');
+          setMountPosition(profile.mountPositions[0] ?? '');
+          setVehicleMetadata(defaultVehicleMetadata(next));
+          setCollectionMode('STANDARD');
+        }}
+        collectionMode={collectionMode}
+        onSelectCollectionMode={setCollectionMode}
+        installationId={installationId}
+        vehicleSubtype={vehicleSubtype}
+        onSelectVehicleSubtype={setVehicleSubtype}
+        mountPosition={mountPosition}
+        onSelectMountPosition={setMountPosition}
         recording={phase === 'recording'}
         uploading={phase === 'uploading'}
         snapshot={snap}
@@ -304,6 +351,9 @@ export default function App() {
         message={message}
         onStartJourney={() => void startJourney()}
         onStopJourney={() => void stopJourney()}
+        onMarkRoadFeature={() => {
+          if (recorderRef.current?.markRoadFeature()) setMessage('Research marker saved. Use markers only as a passenger or research operator.');
+        }}
         onOpenProfile={() => {
           setIsInitialSetup(false);
           setEditingProfile(true);
@@ -318,4 +368,11 @@ export default function App() {
       />
     </>
   );
+}
+
+function defaultVehicleMetadata(vehicle: VehicleType): Record<string, string> {
+  if (vehicle === 'CAR') return { vehicleAgeBand: 'UNKNOWN' };
+  if (vehicle === 'BIKE' || vehicle === 'AUTO_RICKSHAW') return { powertrain: 'UNKNOWN' };
+  if (vehicle === 'BUS' || vehicle === 'TRUCK') return { loadBand: 'UNKNOWN' };
+  return {};
 }

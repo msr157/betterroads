@@ -9,6 +9,7 @@ type Props = {
   activity: number[];
   selectedIndex: number;
   onSelect: (index: number) => void;
+  summary: { sectionsNew: number; conditionChanges: number; potholeSignals: number };
 };
 
 /**
@@ -17,7 +18,7 @@ type Props = {
  * drag, tap-to-seek, touch and arrow keys all work for free; the visible
  * thumb, marker line and per-day activity sparkline render underneath it.
  */
-export default function TimelineBar({ days, activity, selectedIndex, onSelect }: Props) {
+export default function TimelineBar({ days, activity, selectedIndex, onSelect, summary }: Props) {
   const [playing, setPlaying] = useState(false);
 
   // Interval reads via refs so play never captures a stale index.
@@ -39,7 +40,7 @@ export default function TimelineBar({ days, activity, selectedIndex, onSelect }:
       } else {
         onSelectRef.current(next);
       }
-    }, 500);
+    }, 1000);
     return () => window.clearInterval(id);
   }, [playing, days.length]);
 
@@ -53,42 +54,48 @@ export default function TimelineBar({ days, activity, selectedIndex, onSelect }:
   const maxActivity = Math.max(1, ...activity);
 
   return (
-    <div className="pointer-events-auto rounded-2xl border border-line bg-paper/95 p-3 shadow-[0_18px_44px_-18px_rgba(10,10,10,0.35)] backdrop-blur sm:p-4">
+    <section className="map-timeline" aria-label="Historical map playback">
       {/* ── Date readout + play control ─────────────────────────────── */}
-      <div className="flex items-center gap-3">
+      <div className="map-timeline-head">
+        <button type="button" onClick={() => onSelect(Math.max(0, selectedIndex - 1))} disabled={selectedIndex === 0} aria-label="Previous day" className="map-time-step">
+          <svg viewBox="0 0 24 24" aria-hidden><path d="m15 6-6 6 6 6" /></svg>
+        </button>
         <button
           type="button"
           onClick={togglePlay}
           aria-label={playing ? 'Pause timeline' : 'Play timeline'}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line-strong text-ink transition-colors hover:border-saffron hover:text-saffron"
+          className="map-time-play"
         >
           {playing ? (
-            <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
+            <svg viewBox="0 0 24 24" fill="currentColor">
               <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
             </svg>
           ) : (
-            <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 h-3.5 w-3.5">
+            <svg viewBox="0 0 24 24" fill="currentColor">
               <path d="M8 5v14l11-7z" />
             </svg>
           )}
         </button>
-        <p className="font-display text-sm font-bold tracking-tight text-ink">
+        <p className="map-timeline-date">
           {formatDay(days[selectedIndex])}
           {atEnd && (
-            <span className="ml-2 text-xs font-medium text-ink-3">latest</span>
+            <span>Latest</span>
           )}
         </p>
-        <span className="eyebrow ml-auto hidden text-[0.6rem] sm:inline">Timeline</span>
+        <button type="button" onClick={() => onSelect(Math.min(last, selectedIndex + 1))} disabled={atEnd} aria-label="Next day" className="map-time-step">
+          <svg viewBox="0 0 24 24" aria-hidden><path d="m9 6 6 6-6 6" /></svg>
+        </button>
+        <p className="map-change-summary" aria-live="polite">{summary.sectionsNew} new sections · {summary.conditionChanges} condition changes · {summary.potholeSignals} new pothole {summary.potholeSignals === 1 ? 'signal' : 'signals'}</p>
       </div>
 
       {/* ── Scrub track: sparkline + baseline + marker + range input ── */}
-      <div className="relative mt-2 h-10">
+      <div className="map-time-track">
         {/* Per-day activity sparkline (single series → slot-1 blue) */}
         <svg
           aria-hidden
           preserveAspectRatio="none"
           viewBox={`0 0 ${days.length} 40`}
-          className="absolute inset-x-0 bottom-1 h-7 w-full"
+          className="map-time-bars"
         >
           {activity.map((v, i) =>
             v > 0 ? (
@@ -106,17 +113,17 @@ export default function TimelineBar({ days, activity, selectedIndex, onSelect }:
         </svg>
 
         {/* Baseline */}
-        <div className="absolute inset-x-0 bottom-1 h-px bg-line-strong" />
+        <div className="map-time-baseline" />
 
         {/* Selected-day marker line + thumb */}
         <div
           aria-hidden
-          className="absolute bottom-1 top-0 w-px bg-ink/50"
+          className="map-time-marker"
           style={{ left: `${pct}%` }}
         />
         <div
           aria-hidden
-          className="absolute h-3.5 w-3.5 rounded-full border-2 border-ink bg-paper shadow-sm"
+          className="map-time-thumb"
           style={{ left: `calc(${pct}% - 0.4375rem)`, bottom: '-0.3125rem' }}
         />
 
@@ -130,15 +137,15 @@ export default function TimelineBar({ days, activity, selectedIndex, onSelect }:
           onChange={(e) => onSelect(Number(e.target.value))}
           aria-label="Road quality date"
           aria-valuetext={formatDay(days[selectedIndex])}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          className="map-time-input"
         />
       </div>
 
       {/* ── Range endpoints ─────────────────────────────────────────── */}
-      <div className="mt-1.5 flex justify-between text-[0.625rem] text-ink-3">
+      <div className="map-time-ends">
         <span>{formatDay(days[0])}</span>
         <span>{formatDay(days[last])}</span>
       </div>
-    </div>
+    </section>
   );
 }

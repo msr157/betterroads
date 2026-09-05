@@ -28,7 +28,7 @@ export default function JourneysTable({
       />
       {error ? <div className="mb-4"><ErrorNote message={error} /></div> : null}
       <TableCard
-        colCount={7}
+        colCount={9}
         rowCount={rows?.length ?? 0}
         emptyLabel="No journeys yet."
         loading={loading}
@@ -41,6 +41,8 @@ export default function JourneysTable({
             <Th>Received</Th>
             <Th>Device</Th>
             <Th>Vehicle</Th>
+            <Th>Quality</Th>
+            <Th>Reason</Th>
             <Th right>Distance km</Th>
             <Th right>Duration</Th>
             <Th right>RQI</Th>
@@ -56,6 +58,16 @@ export default function JourneysTable({
               <span className="text-xs text-ink-3">{fmtLabel(j.devicePlatform)}</span>
             </Td>
             <Td muted>{fmtLabel(j.vehicleType)}</Td>
+            <Td>
+              <span className={j.qualityStatus === 'QUARANTINED' ? 'text-red-400' : 'text-ink'}>
+                {fmtLabel(j.qualityStatus)}
+              </span>
+            </Td>
+            <Td muted>
+              <span title={j.qualityReasons.join(', ')}>
+                {j.qualityReasons.length ? j.qualityReasons.map(fmtLabel).join(', ') : '—'}
+              </span>
+            </Td>
             <Td right>{(j.distanceM / 1000).toFixed(1)}</Td>
             <Td right>{fmtDuration(j.durationS)}</Td>
             <Td right>{Math.round(j.rqiScore)}</Td>

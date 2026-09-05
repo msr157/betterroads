@@ -12,9 +12,12 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "gen:disposable": "node scripts/gen-disposable.mjs",
+    "collection:cleanup": "tsx scripts/cleanup-collection-objects.ts",
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1123.0",
+    "@aws-sdk/s3-request-presigner": "^3.1123.0",
     "@hono/node-server": "^1.13.7",
     "@hono/zod-validator": "^0.8.0",
     "dotenv": "^16.4.7",

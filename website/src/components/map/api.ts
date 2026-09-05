@@ -11,6 +11,9 @@ export type TimelineDay = {
   segmentsUpdated: number;
   avgRqi: number | null;
   eventCount: number;
+  sectionsNew: number;
+  conditionChanges: number;
+  potholeSignals: number;
 };
 
 export type TimelineData = {
@@ -28,6 +31,7 @@ export type RoadSegment = {
   rqi: number; // 0–100
   sampleCount: number;
   eventCount: number;
+  lastEvidenceAt: string | null;
 };
 
 export type RoadEvent = {
@@ -37,6 +41,26 @@ export type RoadEvent = {
   occurredAt: string;
   lat: number;
   lon: number;
+  speedKmh: number | null;
+  segmentKey: string | null;
+  accuracyM: number | null;
+  locationQuality: string | null;
+  potholeHotspotId: string | null;
+};
+
+export type PotholeHotspot = {
+  id: string;
+  lat: number;
+  lon: number;
+  accuracyM: number | null;
+  detectionCount: number;
+  distinctJourneyCount: number;
+  firstDetectedAt: string;
+  lastDetectedAt: string;
+  averageSeverity: number;
+  maximumSeverity: number;
+  confidence: 'possible' | 'repeated' | 'regional';
+  aggregateCount?: number;
 };
 
 export type Bbox = { minLat: number; maxLat: number; minLon: number; maxLon: number };
@@ -91,17 +115,32 @@ export async function fetchRoads(
 /** Events in the bbox between `from` and `to` (inclusive days). */
 export async function fetchEvents(
   bbox: Bbox,
-  from: string,
-  to: string,
+  from: string | undefined,
+  to: string | undefined,
   signal: AbortSignal,
 ): Promise<RoadEvent[]> {
   const params = bboxParams(bbox);
-  params.set('from', from);
-  params.set('to', to);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
   const res = await fetch(`${API_URL}/api/public/events?${params}`, { signal });
   if (!res.ok) throw new Error(`events request failed (${res.status})`);
   const data = await res.json();
   return data.events ?? [];
+}
+
+export async function fetchHotspots(
+  bbox: Bbox,
+  at: string | undefined,
+  zoom: number,
+  signal: AbortSignal,
+): Promise<{ hotspots: PotholeHotspot[]; aggregate: boolean; truncated: boolean }> {
+  const params = bboxParams(bbox);
+  if (at) params.set('at', at);
+  params.set('zoom', String(zoom));
+  const res = await fetch(`${API_URL}/api/public/hotspots?${params}`, { signal });
+  if (!res.ok) throw new Error(`hotspots request failed (${res.status})`);
+  const data = await res.json();
+  return { hotspots: data.hotspots ?? [], aggregate: !!data.aggregate, truncated: !!data.truncated };
 }
 
 /* ── Day arithmetic (UTC, so no DST/timezone drift in the day list) ───── */
@@ -132,7 +171,7 @@ export function formatDay(day: string): string {
 }
 
 export type Contributor = { id: number; name: string; mappedKm: number; journeyCount: number; contributingSince: string; lastContributionAt: string };
-export type PublicContract = { id: number; roadName: string; city: string; ward: string | null; contractorName: string; tenderReference: string | null; startDate: string | null; endDate: string | null; budget: number | null; status: string; guaranteeUntil: string | null; geometry: GeoJSON.Geometry | null };
+export type PublicContract = { id: number; roadName: string; city: string; ward: string | null; contractorName: string; tenderReference: string | null; startDate: string | null; endDate: string | null; budget: number | null; status: string; guaranteeUntil: string | null; publishedAt: string | null; geometry: GeoJSON.Geometry | null };
 
 export async function fetchLeaderboard(period: 'monthly' | 'lifetime'): Promise<Contributor[]> {
   const res = await fetch(`${API_URL}/api/public/leaderboard?period=${period}`);
@@ -144,4 +183,43 @@ export async function fetchContracts(): Promise<PublicContract[]> {
   const res = await fetch(`${API_URL}/api/public/contracts`);
   if (!res.ok) throw new Error('contracts request failed');
   return (await res.json()).contracts ?? [];
+}
+
+/** A place returned by OpenStreetMap's Nominatim search service. */
+export type IndiaPlace = {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  boundingbox: [string, string, string, string]; // south, north, west, east
+  type: string;
+  address?: {
+    city?: string;
+    town?: string;
+    village?: string;
+    municipality?: string;
+    state_district?: string;
+    state?: string;
+  };
+};
+
+/**
+ * Explicit-submit place search. This is intentionally not autocomplete:
+ * the public Nominatim service permits occasional user-triggered searches,
+ * but not client-side search-as-you-type.
+ */
+export async function searchIndiaPlaces(query: string, signal: AbortSignal): Promise<IndiaPlace[]> {
+  const params = new URLSearchParams({
+    q: query,
+    countrycodes: 'in',
+    format: 'jsonv2',
+    addressdetails: '1',
+    limit: '5',
+  });
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+    signal,
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) throw new Error(`place search failed (${res.status})`);
+  return res.json();
 }
