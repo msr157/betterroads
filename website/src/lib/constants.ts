@@ -87,13 +87,13 @@ export const STATS = [
  * Keep version and URLs in sync with mobile/app/app.json on every release.
  */
 export const APP_DOWNLOAD = {
-  version: '1.3.0',
-  apkUrl: 'https://github.com/msr157/betterroads/releases/download/v1.3.0/BetterRoads.apk',
+  version: '1.3.1',
+  apkUrl: 'https://github.com/msr157/betterroads/releases/download/v1.3.1/BetterRoads.apk',
   apkName: 'BetterRoads.apk',
   requirement: 'Android 10 or newer',
   packageId: 'org.betterroads.app',
   playStoreUrl: '', // filled when the Play listing goes live
-  releaseNotesUrl: 'https://github.com/msr157/betterroads/releases/tag/v1.3.0',
+  releaseNotesUrl: 'https://github.com/msr157/betterroads/releases/tag/v1.3.1',
 } as const;
 
 export const SOCIALS = [
