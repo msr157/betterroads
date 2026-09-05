@@ -10,6 +10,7 @@ type Props = {
   selectedIndex: number;
   onSelect: (index: number) => void;
   summary: { sectionsNew: number; conditionChanges: number; potholeSignals: number };
+  isLoading: boolean;
 };
 
 /**
@@ -18,7 +19,7 @@ type Props = {
  * drag, tap-to-seek, touch and arrow keys all work for free; the visible
  * thumb, marker line and per-day activity sparkline render underneath it.
  */
-export default function TimelineBar({ days, activity, selectedIndex, onSelect, summary }: Props) {
+export default function TimelineBar({ days, activity, selectedIndex, onSelect, summary, isLoading }: Props) {
   const [playing, setPlaying] = useState(false);
 
   // Interval reads via refs so play never captures a stale index.
@@ -30,19 +31,20 @@ export default function TimelineBar({ days, activity, selectedIndex, onSelect, s
   const last = days.length - 1;
   const atEnd = selectedIndex >= last;
 
-  // Auto-advance one day per tick; pause when the scrub reaches "today".
+  // Advance only after the current date has finished drawing. A fixed interval
+  // can outrun a slow API and repeatedly abort every in-flight map request.
   useEffect(() => {
-    if (!playing) return;
-    const id = window.setInterval(() => {
+    if (!playing || isLoading) return;
+    const id = window.setTimeout(() => {
       const next = indexRef.current + 1;
       if (next > days.length - 1) {
         setPlaying(false);
       } else {
         onSelectRef.current(next);
       }
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [playing, days.length]);
+    }, 850);
+    return () => window.clearTimeout(id);
+  }, [playing, isLoading, selectedIndex, days.length]);
 
   const togglePlay = () => {
     // Play from the start again once the scrub has reached the end.
@@ -50,14 +52,19 @@ export default function TimelineBar({ days, activity, selectedIndex, onSelect, s
     setPlaying((p) => !p);
   };
 
+  const selectManually = (index: number) => {
+    setPlaying(false);
+    onSelect(index);
+  };
+
   const pct = last > 0 ? (selectedIndex / last) * 100 : 0;
   const maxActivity = Math.max(1, ...activity);
 
   return (
-    <section className="map-timeline" aria-label="Historical map playback">
+    <section className="map-timeline" aria-label="Historical map playback" aria-busy={isLoading}>
       {/* ── Date readout + play control ─────────────────────────────── */}
       <div className="map-timeline-head">
-        <button type="button" onClick={() => onSelect(Math.max(0, selectedIndex - 1))} disabled={selectedIndex === 0} aria-label="Previous day" className="map-time-step">
+        <button type="button" onClick={() => selectManually(Math.max(0, selectedIndex - 1))} disabled={selectedIndex === 0 || isLoading} aria-label="Previous day" className="map-time-step">
           <svg viewBox="0 0 24 24" aria-hidden><path d="m15 6-6 6 6 6" /></svg>
         </button>
         <button
@@ -81,8 +88,9 @@ export default function TimelineBar({ days, activity, selectedIndex, onSelect, s
           {atEnd && (
             <span>Latest</span>
           )}
+          {isLoading && <span className="map-time-loading">Drawing…</span>}
         </p>
-        <button type="button" onClick={() => onSelect(Math.min(last, selectedIndex + 1))} disabled={atEnd} aria-label="Next day" className="map-time-step">
+        <button type="button" onClick={() => selectManually(Math.min(last, selectedIndex + 1))} disabled={atEnd || isLoading} aria-label="Next day" className="map-time-step">
           <svg viewBox="0 0 24 24" aria-hidden><path d="m9 6 6 6-6 6" /></svg>
         </button>
         <p className="map-change-summary" aria-live="polite">{summary.sectionsNew} new sections · {summary.conditionChanges} condition changes · {summary.potholeSignals} new pothole {summary.potholeSignals === 1 ? 'signal' : 'signals'}</p>
@@ -134,7 +142,7 @@ export default function TimelineBar({ days, activity, selectedIndex, onSelect, s
           max={last}
           step={1}
           value={selectedIndex}
-          onChange={(e) => onSelect(Number(e.target.value))}
+          onChange={(e) => selectManually(Number(e.target.value))}
           aria-label="Road quality date"
           aria-valuetext={formatDay(days[selectedIndex])}
           className="map-time-input"
