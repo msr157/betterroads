@@ -70,6 +70,16 @@ export default function AppDownload() {
                   ? ''
                   : 'Coming to Google Play soon.'}
               </p>
+              {APP_DOWNLOAD.releaseNotesUrl && (
+                <a
+                  href={APP_DOWNLOAD.releaseNotesUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="link-underline font-medium text-saffron"
+                >
+                  What's new in v{APP_DOWNLOAD.version} →
+                </a>
+              )}
             </div>
           </div>
         </div>

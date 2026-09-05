@@ -83,17 +83,17 @@ export const STATS = [
 ] as const;
 
 /**
- * Android app distribution. The APK is served from this site (early access /
- * sideload) while the Play Store listing clears review — keep both in sync
- * with mobile/app/app.json on every release.
+ * Android app distribution. APK is served directly from the GitHub release.
+ * Keep version and URLs in sync with mobile/app/app.json on every release.
  */
 export const APP_DOWNLOAD = {
-  version: '1.1.0',
-  apkUrl: '/downloads/BetterRoads.apk',
+  version: '1.3.0',
+  apkUrl: 'https://github.com/msr157/betterroads/releases/download/v1.3.0/BetterRoads.apk',
   apkName: 'BetterRoads.apk',
   requirement: 'Android 10 or newer',
   packageId: 'org.betterroads.app',
   playStoreUrl: '', // filled when the Play listing goes live
+  releaseNotesUrl: 'https://github.com/msr157/betterroads/releases/tag/v1.3.0',
 } as const;
 
 export const SOCIALS = [
