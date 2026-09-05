@@ -170,7 +170,9 @@ router.get(
           ), hotspot_rollup AS (
             SELECT pothole_hotspot_id, min(lat) lat, min(lon) lon, count(*)::int detections,
                    count(DISTINCT journey_id)::int journeys, min(occurred_at) first_at, max(occurred_at) last_at,
-                   avg(severity) avg_severity, max(severity) max_severity, max(accuracy_m) accuracy_m
+                   avg(severity) avg_severity, max(severity) max_severity,
+                   CASE WHEN count(*) FILTER (WHERE accuracy_m IS NULL) > 0
+                        THEN NULL ELSE max(accuracy_m) END AS accuracy_m
             FROM accepted GROUP BY pothole_hotspot_id
           )
           SELECT ('region:' || floor(lat)::text || ':' || floor(lon)::text) AS id,
@@ -190,7 +192,8 @@ router.get(
                count(e.id)::int AS "detectionCount", count(DISTINCT e.journey_id)::int AS "distinctJourneyCount",
                min(e.occurred_at)::text AS "firstDetectedAt", max(e.occurred_at)::text AS "lastDetectedAt",
                avg(e.severity)::float AS "averageSeverity", max(e.severity)::float AS "maximumSeverity",
-               max(e.accuracy_m)::float AS "accuracyM",
+               CASE WHEN count(*) FILTER (WHERE e.accuracy_m IS NULL) > 0
+                    THEN NULL ELSE max(e.accuracy_m)::float END AS "accuracyM",
                CASE WHEN count(DISTINCT e.journey_id) >= 2 THEN 'repeated' ELSE 'possible' END AS confidence
         FROM pothole_hotspots ph JOIN road_events e ON e.pothole_hotspot_id=ph.id
         JOIN journeys j ON j.id=e.journey_id
@@ -213,31 +216,65 @@ router.get(
 
 router.get('/timeline', async (c) => {
   try {
-    const rows = (await db.execute(sql`
+    const roadRows = (await db.execute(sql`
       WITH snapshot_changes AS (
         SELECT day, segment_key, rqi,
                lag(rqi) OVER (PARTITION BY segment_key ORDER BY day) previous_rqi,
                row_number() OVER (PARTITION BY segment_key ORDER BY day) sequence
         FROM segment_snapshots
-      ), roads_by_day AS (
-        SELECT day, count(*)::int AS segments_updated,
-               count(*) FILTER (WHERE sequence=1)::int AS sections_new,
-               count(*) FILTER (WHERE previous_rqi IS NOT NULL AND round(previous_rqi) <> round(rqi))::int AS condition_changes,
-               round(avg(rqi))::int AS avg_rqi
-        FROM snapshot_changes GROUP BY day
-      ), potholes_by_day AS (
-        SELECT e.occurred_at::date day, count(*)::int pothole_signals
-        FROM road_events e JOIN journeys j ON j.id=e.journey_id
-        WHERE e.type='POTHOLE' AND j.accepted_at IS NOT NULL AND j.quality_status IN ('LEGACY_APPROVED','APPROVED')
-        GROUP BY e.occurred_at::date
-      ), all_days AS (SELECT day FROM roads_by_day UNION SELECT day FROM potholes_by_day)
-      SELECT d.day::text day, coalesce(r.segments_updated,0)::int AS "segmentsUpdated",
-             coalesce(r.sections_new,0)::int AS "sectionsNew", coalesce(r.condition_changes,0)::int AS "conditionChanges",
-             r.avg_rqi AS "avgRqi", coalesce(p.pothole_signals,0)::int AS "potholeSignals",
-             coalesce(p.pothole_signals,0)::int AS "eventCount"
-      FROM all_days d LEFT JOIN roads_by_day r USING(day) LEFT JOIN potholes_by_day p USING(day)
-      ORDER BY d.day ASC
-    `)) as unknown as Array<{ day: string }>;
+      )
+      SELECT day::text AS day,
+             count(*)::int AS "segmentsUpdated",
+             count(*) FILTER (WHERE sequence = 1)::int AS "sectionsNew",
+             count(*) FILTER (
+               WHERE previous_rqi IS NOT NULL
+                 AND round(previous_rqi::numeric) <> round(rqi::numeric)
+             )::int AS "conditionChanges",
+             round(avg(rqi)::numeric)::int AS "avgRqi"
+      FROM snapshot_changes
+      GROUP BY day
+      ORDER BY day ASC
+    `)) as unknown as Array<{ day: string; segmentsUpdated: number; sectionsNew: number; conditionChanges: number; avgRqi: number | null }>;
+
+    const potholeRows = (await db.execute(sql`
+      SELECT e.occurred_at::date::text AS day,
+             count(*)::int AS "potholeSignals"
+      FROM road_events e
+      JOIN journeys j ON j.id = e.journey_id
+      WHERE e.type = 'POTHOLE'
+        AND j.accepted_at IS NOT NULL
+        AND j.quality_status IN ('LEGACY_APPROVED', 'APPROVED')
+      GROUP BY e.occurred_at::date
+      ORDER BY e.occurred_at::date ASC
+    `)) as unknown as Array<{ day: string; potholeSignals: number }>;
+
+    const byDay = new Map<string, {
+      day: string;
+      segmentsUpdated: number;
+      sectionsNew: number;
+      conditionChanges: number;
+      avgRqi: number | null;
+      potholeSignals: number;
+      eventCount: number;
+    }>();
+    for (const row of roadRows) {
+      byDay.set(row.day, { ...row, potholeSignals: 0, eventCount: 0 });
+    }
+    for (const row of potholeRows) {
+      const current = byDay.get(row.day) ?? {
+        day: row.day,
+        segmentsUpdated: 0,
+        sectionsNew: 0,
+        conditionChanges: 0,
+        avgRqi: null,
+        potholeSignals: 0,
+        eventCount: 0,
+      };
+      current.potholeSignals = row.potholeSignals;
+      current.eventCount = row.potholeSignals;
+      byDay.set(row.day, current);
+    }
+    const rows = [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
 
     return c.json(
       {
