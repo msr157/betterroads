@@ -1,0 +1,13 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+group = 'org.betterroads'
+version = '1.0.0'
+android {
+  namespace 'org.betterroads.recorder'
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}

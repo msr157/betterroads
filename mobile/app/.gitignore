@@ -4,6 +4,10 @@ dist/
 web-build/
 android/
 ios/
+# Keep the checked-in Expo module's native Android implementation. The app-level
+# android/ directory is generated, while this module is source code.
+!modules/road-recorder/android/
+!modules/road-recorder/android/**
 release/
 *.log
 .env*.local

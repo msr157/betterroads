@@ -7,7 +7,7 @@ export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://betterroads.o
 export const TRAVELDATA_ENDPOINT = `${API_URL}/api/user/mobile/traveldata`;
 export const COLLECTION_ENDPOINT = `${API_URL}/api/user/mobile/collection`;
 
-export const APP_VERSION = '1.3.1';
+export const APP_VERSION = '1.4.0';
 
 export const RELEASE_CHANNEL = process.env.EXPO_PUBLIC_RELEASE_CHANNEL === 'test' ? 'test' : 'stable';
 // Google Sign-In is now enabled on all channels (stable + test).

@@ -443,7 +443,9 @@ export function JourneyDashboard({
             <View style={styles.instructionStep}>
               <Text style={styles.stepNum}>2</Text>
               <Text style={styles.stepText}>
-                Tap Start Journey and keep the app open while commuting.
+                {Platform.OS === 'android'
+                  ? 'Tap Start Journey, then lock the screen if you need to. Android keeps recording through its visible foreground service.'
+                  : 'Tap Start Journey and keep the app open while commuting.'}
               </Text>
             </View>
             <View style={styles.instructionStep}>
@@ -469,8 +471,10 @@ export function JourneyDashboard({
           </Pressable>
 
           <Text style={styles.footerFootnote}>
-            Recording runs while the app is active in the foreground. Road
-            collection stays separate from the public map until independent
+            {Platform.OS === 'android'
+              ? 'After starting a journey, you can lock the screen. Recording continues until you end the journey or Android interrupts it. '
+              : 'Keep the app open while recording. '}
+            Road collection stays separate from the public map until independent
             evidence and vehicle-specific models validate it.
           </Text>
 

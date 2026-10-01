@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import * as Location from 'expo-location';
 import { INDIA_STATES } from '@/indiaLocations';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
@@ -95,6 +96,7 @@ export default function App() {
   );
 
   const recorderRef = useRef<JourneyRecorder | null>(null);
+  const journeyBusy = useRef(false);
 
   // Restore existing session and flush offline queue on launch
   useEffect(() => {
@@ -103,13 +105,26 @@ export default function App() {
         setInstallationId(await getDeviceUuid());
         const restored = await restoreUser();
         setUser(restored);
+        const recovered = await JourneyRecorder.recover();
+        if (recovered) {
+          recorderRef.current = recovered;
+          const config = recovered.startConfig;
+          setVehicle(config.vehicleClass);
+          setCollectionMode(config.mode);
+          setVehicleSubtype(config.vehicleSubtype);
+          setVehicleMetadata(config.vehicleMetadata);
+          setMountPosition(config.mountPosition);
+          setSnap(recovered.snapshot());
+          setPhase('recording');
+          setMessage(recovered.recordingNotice() ?? 'Your journey is still recording.');
+        }
         if (restored) {
           await flushLegacyQueue();
           await flushCollectionQueue();
         }
         setPending((await legacyPendingCount()) + pendingCollectionCount());
-      } catch {
-        // network or storage error on boot
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'Could not restore saved recording.');
       } finally {
         setTimeout(() => setBooting(false), 500);
       }
@@ -120,8 +135,14 @@ export default function App() {
   useEffect(() => {
     if (phase !== 'recording') return;
     const id = setInterval(() => {
-      const s = recorderRef.current?.snapshot();
-      if (s) setSnap({ ...s });
+      if (AppState.currentState !== 'active' || journeyBusy.current) return;
+      const recorder = recorderRef.current;
+      if (!recorder) return;
+      void recorder.syncNative().then(() => {
+        if (recorderRef.current !== recorder) return;
+        setSnap({ ...recorder.snapshot() });
+        setMessage(recorder.recordingNotice());
+      }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Cannot read recording status.'));
     }, 1000);
     return () => clearInterval(id);
   }, [phase]);
@@ -207,73 +228,87 @@ export default function App() {
   }, []);
 
   const startJourney = useCallback(async () => {
-    setMessage(null);
-    const profile = profileFor(vehicle);
-    if (!(await collectionProfileIsCurrent(vehicle, profile.profileVersion))) {
-      setMessage('This vehicle collection profile has changed. Update the app before recording.');
-      return;
-    }
-    if (collectionMode === 'CONTROLLED_RESEARCH' && !(await controlledCollectionIsAuthorized(vehicle))) {
-      setMessage('This installation is not authorized for controlled research in the selected vehicle. Ask an administrator to authorize its installation UUID first.');
-      return;
-    }
-    const hasPermission = await JourneyRecorder.requestPermissions();
-    if (!hasPermission) {
-      setMessage('Location permission is required to record road quality.');
-      return;
-    }
-    const recorder = new JourneyRecorder({
-      mode: collectionMode,
-      vehicleClass: vehicle,
-      vehicleSubtype,
-      vehicleMetadata,
-      mountPosition,
-    });
-    recorderRef.current = recorder;
-    await recorder.start();
-    setSnap(null);
-    setPhase('recording');
+    if (journeyBusy.current || recorderRef.current) return;
+    journeyBusy.current = true;
+    try {
+      setMessage(null);
+      const profile = profileFor(vehicle);
+      if (!(await collectionProfileIsCurrent(vehicle, profile.profileVersion))) {
+        setMessage('This vehicle collection profile has changed. Update the app before recording.');
+        return;
+      }
+      if (collectionMode === 'CONTROLLED_RESEARCH' && !(await controlledCollectionIsAuthorized(vehicle))) {
+        setMessage('This installation is not authorized for controlled research in the selected vehicle. Ask an administrator to authorize its installation UUID first.');
+        return;
+      }
+      const hasPermission = await JourneyRecorder.requestPermissions();
+      if (!hasPermission) {
+        setMessage('Location and notification permissions are required to record a journey safely.');
+        return;
+      }
+      const recorder = new JourneyRecorder({
+        mode: collectionMode,
+        vehicleClass: vehicle,
+        vehicleSubtype,
+        vehicleMetadata,
+        mountPosition,
+      });
+      recorderRef.current = recorder;
+      await recorder.start();
+      setSnap(null);
+      setPhase('recording');
+    } catch (error) {
+      recorderRef.current = null;
+      setMessage(error instanceof Error ? error.message : 'Could not start recording.');
+    } finally { journeyBusy.current = false; }
   }, [collectionMode, mountPosition, vehicle, vehicleMetadata, vehicleSubtype]);
 
   const stopJourney = useCallback(async () => {
     const recorder = recorderRef.current;
-    if (!recorder) return;
-    setPhase('uploading');
+    if (!recorder || journeyBusy.current) return;
+    journeyBusy.current = true;
+    try {
+      setPhase('uploading');
 
-    const prepared = await recorder.stop();
-    recorderRef.current = null;
+      const prepared = await recorder.stop();
+      if (!prepared) {
+        await recorder.acknowledgeSaved();
+        recorderRef.current = null;
+        setMessage('Journey did not meet GPS, distance or movement requirements. Nothing to upload.');
+        setPhase('idle');
+        return;
+      }
 
-    if (!prepared) {
-      setMessage('No GPS fix during this trip — nothing to upload.');
+      const result = await uploadCollectionOrQueue(prepared, () => recorder.acknowledgeSaved());
+      recorderRef.current = null;
+      setPending((await legacyPendingCount()) + pendingCollectionCount());
+
+      if (result === 'auth-expired') {
+        setMessage(
+          'Your session expired. The journey is saved; sign in again to upload it.',
+        );
+        setUser(null);
+      } else if (result === 'rejected') {
+        setMessage(
+          'The server rejected this journey. It will not be retried.',
+        );
+      } else if (result === 'quarantined') {
+        setMessage('Journey received for diagnostics, but it did not affect public road scores.');
+      } else if (result === 'uploaded') {
+        setMessage(
+          `Collection uploaded — ${prepared.payload.featureWindows.length} sensor windows received for research.`,
+        );
+      } else {
+        setMessage(
+          'Offline — journey saved to queue and will upload automatically.',
+        );
+      }
+
       setPhase('idle');
-      return;
-    }
-
-    const result = await uploadCollectionOrQueue(prepared);
-    setPending((await legacyPendingCount()) + pendingCollectionCount());
-
-    if (result === 'auth-expired') {
-      setMessage(
-        'Your session expired. The journey is saved; sign in again to upload it.',
-      );
-      setUser(null);
-    } else if (result === 'rejected') {
-      setMessage(
-        'The server rejected this journey. It will not be retried.',
-      );
-    } else if (result === 'quarantined') {
-      setMessage('Journey received for diagnostics, but it did not affect public road scores.');
-    } else if (result === 'uploaded') {
-      setMessage(
-        `Collection uploaded — ${prepared.payload.featureWindows.length} sensor windows received for research.`,
-      );
-    } else {
-      setMessage(
-        'Offline — journey saved to queue and will upload automatically.',
-      );
-    }
-
-    setPhase('idle');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save journey. Tap Stop to retry.');
+      setPhase('recording');
+    } finally { journeyBusy.current = false; }
   }, []);
 
   // 1. Splash Screen
@@ -352,7 +387,9 @@ export default function App() {
         onStartJourney={() => void startJourney()}
         onStopJourney={() => void stopJourney()}
         onMarkRoadFeature={() => {
-          if (recorderRef.current?.markRoadFeature()) setMessage('Research marker saved. Use markers only as a passenger or research operator.');
+          void recorderRef.current?.markRoadFeature().then((saved) => {
+            if (saved) setMessage('Research marker saved. Use markers only as a passenger or research operator.');
+          }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Could not save marker.'));
         }}
         onOpenProfile={() => {
           setIsInitialSetup(false);

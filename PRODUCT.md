@@ -12,7 +12,7 @@ The primary user is an Indian driver or rider with an Android phone who is frust
 
 ## Product Purpose
 
-BetterRoads turns phones into a distributed road-sensing network. A contributor mounts the phone, manually starts a journey, selects the vehicle, and drives normally with the app open. Accepted movement data scores road quality and updates a public map. Success means more citizens recording valid journeys so public road evidence becomes broad and difficult to ignore.
+BetterRoads turns phones into a distributed road-sensing network. A contributor mounts the phone, manually starts a journey, selects the vehicle, and drives normally. Accepted movement data scores road quality and updates a public map. On Android, a user-started foreground service keeps GPS and motion capture running with the screen locked. Success means more citizens recording valid journeys so public road evidence becomes broad and difficult to ignore.
 
 ## Positioning
 
@@ -20,7 +20,7 @@ BetterRoads turns the phone already travelling on a road into evidence: phone to
 
 ## Operating Context
 
-The app supports Android 10 or newer. Recording is manual, foreground-only, India-only, and requires a mounted phone. Vehicle selection remains manual. The website explains the movement, distributes the signed APK, and exposes the public road-quality map.
+The app supports Android 10 or newer. Recording is manual, India-only, and requires a mounted phone. Android recording continues through a user-started foreground service with a persistent notification; iOS recording remains foreground-only. Vehicle selection remains manual. The website explains the movement, distributes the signed APK, and exposes the public road-quality map.
 
 ## Capabilities and Constraints
 
@@ -28,7 +28,7 @@ The app supports Android 10 or newer. Recording is manual, foreground-only, Indi
 - Recording scores GPS and motion only during confirmed movement, pauses at traffic stops, and queues valid journeys offline when necessary.
 - Public totals are available from `/api/public/stats`; the network is early-stage and changes over time.
 - National reach is an ambition, not a current impact claim.
-- Background and screen-off recording are not available.
+- Android screen-off recording is available only after the user starts a journey in the visible app; force-stop, shutdown, revoked permissions, and hardware or system interruptions end capture and retain a recoverable journal.
 - `/map`, `/app`, privacy, terms, and mobile behavior must continue working.
 
 ## Brand Commitments

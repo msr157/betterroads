@@ -17,6 +17,13 @@ function collectionQueueDir(): Directory {
   return directory;
 }
 
+export function hasQueuedCollection(sessionId: string): boolean {
+  const file = new File(collectionQueueDir(), `${sessionId}.json`);
+  if (!file.exists) return false;
+  // Only acknowledge a complete readable queue entry, never a partial write.
+  try { return JSON.parse(file.textSync()).payload?.sessionId === sessionId; } catch { return false; }
+}
+
 function rawSessionDir(sessionId: string): Directory {
   return new Directory(collectionQueueDir(), `${sessionId}.raw`);
 }
@@ -121,7 +128,7 @@ function deleteQueuedFiles(file: File, payload: CollectionSessionV3): void {
   if (rawDirectory.exists) rawDirectory.delete();
 }
 
-export async function uploadCollectionOrQueue(prepared: PreparedCollection): Promise<CollectionUploadResult> {
+export async function uploadCollectionOrQueue(prepared: PreparedCollection, onSaved?: () => Promise<void>): Promise<CollectionUploadResult> {
   const { payload, rawObjects } = prepared;
   const rawDirectory = rawSessionDir(payload.sessionId);
   const rawFiles: QueuedRawFile[] = [];
@@ -136,6 +143,10 @@ export async function uploadCollectionOrQueue(prepared: PreparedCollection): Pro
   const queued: QueuedCollection = { ownerId: await getCurrentUserId(), payload, rawFiles };
   const file = new File(collectionQueueDir(), `${payload.sessionId}.json`);
   file.write(JSON.stringify(queued));
+  if (!hasQueuedCollection(payload.sessionId)) {
+    throw new Error('The journey could not be durably saved on this device.');
+  }
+  await onSaved?.();
   let result: PostResult = 'retry';
   try { result = await postCollection(queued); } catch { result = 'retry'; }
   if (result === 'received' || result === 'quarantined' || result === 'rejected') deleteQueuedFiles(file, payload);

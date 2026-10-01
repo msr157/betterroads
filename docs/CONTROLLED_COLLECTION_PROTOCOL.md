@@ -16,14 +16,17 @@ and independent post-drive review.
 4. Select the exact vehicle class/subtype and a supported rigid mount. Cars,
    bikes, and auto-rickshaws require separate sessions and exports.
 5. Confirm the phone clock, battery, foreground location permission, mount
-   stability, and approximately 50 Hz sensor cadence.
+   stability, and approximately 50 Hz sensor cadence. On Android, also confirm
+   the recording notification appears before locking the screen.
 
 ## During a drive
 
 - The driver must not touch the phone. A passenger or research operator may
   press “mark road feature” at a surveyed encounter.
-- Keep the screen on and the app foregrounded; background recording is out of
-  scope.
+- On Android, the visible app starts a location foreground service. The screen
+  may be locked after the persistent recording notification appears. On iOS,
+  keep the app foregrounded. Do not force-stop the app or dismiss the Android
+  recording service from system controls during a session.
 - Drive naturally and legally. Repeat passes in both relevant directions and
   include known-normal road, braking, turning, handling, and stop artifacts.
 - A marker is evidence for later alignment, never an automatic pothole label.

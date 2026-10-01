@@ -1,4 +1,8 @@
-import { Platform } from 'react-native';
+import { Platform, PermissionsAndroid } from 'react-native';
+import { getCurrentUserId } from '@/auth';
+import { drainJournal, replaySensor, type JournalPage, type JournalRow } from '@/collection/journalReplay';
+import { hasQueuedCollection } from '@/collection/queue';
+import { nativeRecorder, nativeSession, type NativeSession } from '@/collection/nativeRecording';
 import * as Device from 'expo-device';
 import * as Location from 'expo-location';
 import * as Crypto from 'expo-crypto';
@@ -36,7 +40,7 @@ export type CollectionRecorderSnapshot = {
   motionState: MotionState;
 };
 
-/** Foreground v3 collector. It records neutral feature windows, never road labels or RQI. */
+/** Journal-backed Android collector; foreground fallback on other platforms. It records neutral feature windows, never road labels or RQI. */
 export class JourneyRecorder {
   private readonly profile: VehicleProfile;
   private readonly collector: CollectionEngine;
@@ -47,6 +51,73 @@ export class JourneyRecorder {
   private gyroSub: EventSubscription | null = null;
   private locationSub: Location.LocationSubscription | null = null;
   private startedAt = 0;
+  private native: NativeSession | null = null;
+  private journalOffset = 0;
+  private syncing: Promise<void> | null = null;
+  private prepared: PreparedCollection | null = null;
+
+  static async recover(): Promise<JourneyRecorder | null> {
+    const session = await nativeSession();
+    if (!session) return null;
+    if (session.config.ownerId !== await getCurrentUserId()) {
+      // Do not leave an account's recorder running after a logout or account
+      // switch. Keep its journal intact so the owner can finish it later.
+      if (session.running) await nativeRecorder().stop();
+      throw new Error('A saved journey belongs to another account. Sign in to that account to finish it.');
+    }
+    if (!session.running && hasQueuedCollection(session.id)) {
+      await nativeRecorder().clear(session.id);
+      return null;
+    }
+    const recorder = new JourneyRecorder(session.config);
+    recorder.native = session;
+    recorder.startedAt = session.startedAt;
+    await recorder.syncNative();
+    return recorder;
+  }
+
+  async syncNative(): Promise<void> {
+    if (!this.native) return;
+    if (this.syncing) return this.syncing;
+    this.syncing = (async () => {
+      await drainJournal(this.journalOffset,
+        async (offset) => JSON.parse(await nativeRecorder().read(offset)) as JournalPage,
+        (row) => this.replay(row),
+        (offset) => { this.journalOffset = offset; });
+      this.native = await nativeSession();
+    })();
+    try { await this.syncing; } finally { this.syncing = null; }
+  }
+
+  private replay(row: JournalRow): void {
+    this.lastReplayAt = Math.max(this.lastReplayAt, row[1]);
+    if (row[0] === 'a') {
+      replaySensor(row, this.accelClock, (t, us, value) => this.collector.addAccelerometer(t, us, value));
+    } else if (row[0] === 'g') {
+      replaySensor(row, this.gyroClock, (t, us, value) => this.collector.addGyroscope(t, us, value));
+    } else if (row[0] === 'l') {
+      this.addLocation({ timestamp: row[1], coords: {
+        latitude: row[2], longitude: row[3], accuracy: row[4], speed: row[5],
+        heading: row[6], altitude: row[7], altitudeAccuracy: null,
+      } });
+    } else if (row[0] === 'm') {
+      this.markers.push({ markerId: row[2], markedAt: row[1], markerType: row[3] as CollectionMarkerV1['markerType'] });
+    }
+  }
+
+  get startConfig(): CollectionStartConfig { return this.config; }
+
+  recordingNotice(): string | null {
+    if (!this.native) return null;
+    if (!this.native.running) return this.native.error ?? 'Recording has stopped. Tap Stop to finish the saved journey.';
+    if (Date.now() - this.native.lastLocationAt > 15_000) return 'Waiting for GPS. Motion data is being saved.';
+    return null;
+  }
+
+  async acknowledgeSaved(): Promise<void> {
+    if (this.native) await nativeRecorder().clear(this.native.id);
+  }
+
   private distanceM = 0;
   private movingDurationMs = 0;
   private lastAcceptedAt: number | null = null;
@@ -69,7 +140,12 @@ export class JourneyRecorder {
   static async requestPermissions(): Promise<boolean> {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      return status === 'granted';
+      if (status !== 'granted') return false;
+      if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+        const notification = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        if (notification !== PermissionsAndroid.RESULTS.GRANTED) return false;
+      }
+      return true;
     } catch {
       return false;
     }
@@ -77,6 +153,23 @@ export class JourneyRecorder {
 
   async start(): Promise<void> {
     this.startedAt = Date.now();
+    if (Platform.OS === 'android') {
+      const ownerId = await getCurrentUserId();
+      this.native = JSON.parse(await nativeRecorder().start(JSON.stringify({ ...this.config, ownerId }))) as NativeSession;
+      this.startedAt = this.native.startedAt;
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const session = await nativeSession();
+        if (session?.running) { this.native = session; return; }
+        if (session?.error) {
+          await nativeRecorder().clear(session.id);
+          this.native = null;
+          throw new Error(session.error);
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      }
+      await nativeRecorder().stop();
+      throw new Error('Recording did not start. Reopen the app to recover the saved session.');
+    }
     try {
       Accelerometer.setUpdateInterval(SENSOR_INTERVAL_MS);
       this.accelSub = Accelerometer.addListener(({ x, y, z, timestamp }) => {
@@ -126,8 +219,13 @@ export class JourneyRecorder {
   }
 
   /** Passenger/research-operator marker. Drivers must not operate this while moving. */
-  markRoadFeature(markerType: CollectionMarkerV1['markerType'] = 'PASSENGER_ROAD_FEATURE'): boolean {
+  async markRoadFeature(markerType: CollectionMarkerV1['markerType'] = 'PASSENGER_ROAD_FEATURE'): Promise<boolean> {
     if (this.config.mode !== 'CONTROLLED_RESEARCH') return false;
+    if (this.native) {
+      await nativeRecorder().mark(markerType);
+      await this.syncNative();
+      return true;
+    }
     const markedAt = Date.now();
     const nearest = [...this.locationSamples]
       .sort((a, b) => Math.abs(a.timestamp - markedAt) - Math.abs(b.timestamp - markedAt))[0];
@@ -136,10 +234,16 @@ export class JourneyRecorder {
   }
 
   async stop(): Promise<PreparedCollection | null> {
+    if (this.prepared) return this.prepared;
+    if (this.native) {
+      await nativeRecorder().stop();
+      if (this.syncing) await this.syncing;
+      await this.syncNative();
+    }
     this.accelSub?.remove();
     this.gyroSub?.remove();
     this.locationSub?.remove();
-    const endedAt = Date.now();
+    const endedAt = this.native?.endedAt ?? (this.native ? this.lastRecordedAt() : Date.now());
     this.collector.finish(endedAt);
 
     const start = this.locationSamples[0];
@@ -158,7 +262,7 @@ export class JourneyRecorder {
     const candidateCount = featureWindows.filter((window) => window.kind === 'CANDIDATE').length;
     const normalWindowCount = featureWindows.filter((window) => window.kind === 'RANDOM_NORMAL').length;
 
-    const sessionId = Crypto.randomUUID();
+    const sessionId = this.native?.id ?? Crypto.randomUUID();
     const rawObjects = this.config.mode === 'CONTROLLED_RESEARCH'
       ? await encodeRawWindows(this.collector.completed)
       : [];
@@ -217,10 +321,22 @@ export class JourneyRecorder {
       locationSamples: this.locationSamples,
       featureWindows,
       rawObjects: rawObjects.map(({ manifest }) => manifest),
-      markers: this.markers,
+      markers: this.markers.map((marker) => {
+        const nearest = this.locationSamples.reduce<LocationPoint | undefined>((best, sample) =>
+          !best || Math.abs(sample.timestamp - marker.markedAt) < Math.abs(best.timestamp - marker.markedAt) ? sample : best, undefined);
+        return { ...marker, location: nearest && Math.abs(nearest.timestamp - marker.markedAt) <= 2000 ? nearest : undefined };
+      }),
     };
-    return { payload, rawObjects };
+    this.prepared = { payload, rawObjects };
+    return this.prepared;
   }
+
+  private lastRecordedAt(): number {
+    // After process death use the last persisted sample, not the time the user reopened the app.
+    return this.lastReplayAt || this.startedAt;
+  }
+
+  private lastReplayAt = 0;
 
   private addLocation(location: Location.LocationObject): void {
     const fix: QualityFix = {
