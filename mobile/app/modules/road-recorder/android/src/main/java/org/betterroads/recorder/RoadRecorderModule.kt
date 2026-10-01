@@ -17,7 +17,7 @@ internal object Journal {
   fun directory(context: Context) = File(context.noBackupFilesDir, "road-recording").apply { mkdirs() }
   fun metadata(context: Context) = File(directory(context), "session.json")
   fun samples(context: Context) = File(directory(context), "samples.jsonl")
-  fun read(context: Context): JSONObject? = metadata(context).takeIf { it.exists() }?.let { JSONObject(it.readText()) }
+  fun read(context: Context): JSONObject? = metadata(context).takeIf { it.exists() }?.let { JSONObject(it.readText(Charsets.UTF_8)) }
   fun save(context: Context, value: JSONObject) {
     val file = android.util.AtomicFile(metadata(context))
     val stream = file.startWrite()
@@ -62,20 +62,31 @@ class RoadRecorderModule : Module() {
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("read") { offset: Double ->
       synchronized(Journal.lock) {
-        val rows = org.json.JSONArray()
-        RandomAccessFile(Journal.samples(context), "r").use { file ->
-          require(offset >= 0 && offset <= file.length())
-          file.seek(offset.toLong())
-          var count = 0
-          while (count < 1000 && file.filePointer < file.length()) {
-            val before = file.filePointer
-            val line = file.readLine() ?: break
-            // A process death may leave an incomplete final record. Do not invent a sample.
-            try { rows.put(org.json.JSONArray(line)) }
-            catch (_: Exception) { file.seek(before); break }
-            count++
+        try {
+          val rows = org.json.JSONArray()
+          RandomAccessFile(Journal.samples(context), "r").use { file ->
+            if (offset < 0 || offset > file.length()) {
+              throw IllegalArgumentException("Invalid journal offset: $offset (file size: ${file.length()})")
+            }
+            file.seek(offset.toLong())
+            var count = 0
+            while (count < 1000 && file.filePointer < file.length()) {
+              val before = file.filePointer
+              val line = file.readLine() ?: break
+              // A process death may leave an incomplete final record. Do not invent a sample.
+              try { rows.put(org.json.JSONArray(line)) }
+              catch (e: Exception) {
+                android.util.Log.w("RoadRecorderModule", "Skipping corrupt line at $before: ${e.message}")
+                file.seek(before)
+                break
+              }
+              count++
+            }
+            JSONObject().put("rows", rows).put("offset", file.filePointer).toString()
           }
-          JSONObject().put("rows", rows).put("offset", file.filePointer).toString()
+        } catch (e: Exception) {
+          android.util.Log.e("RoadRecorderModule", "Failed to read journal", e)
+          throw IllegalStateException("Failed to read journal at offset $offset: ${e.message}", e)
         }
       }
     }

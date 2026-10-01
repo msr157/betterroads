@@ -57,6 +57,8 @@ class RecordingService : Service(), SensorEventListener, LocationListener {
     synchronized(Journal.lock) {
       if (intent?.action == "STOP") { finish(null); return START_NOT_STICKY }
       if (active != null) return START_NOT_STICKY
+      // Set active IMMEDIATELY to prevent race condition with concurrent starts
+      active = this
       try {
         val note = notification("Starting GPS and motion sensors…")
         if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFICATION_ID, note, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
@@ -74,12 +76,15 @@ class RecordingService : Service(), SensorEventListener, LocationListener {
           .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BetterRoads:Journey").apply {
             setReferenceCounted(false); acquire(MAX_DURATION_MS + 60_000)
           }
-        active = this
         check(sensors.registerListener(this, accel, 20_000, 0, worker)) { "Cannot start accelerometer." }
         check(sensors.registerListener(this, gyro, 20_000, 0, worker)) { "Cannot start gyroscope." }
         locations.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, this, thread.looper)
         worker.postDelayed(health, 1000)
-      } catch (e: Exception) { finish(e.message ?: "Recording could not start.") }
+      } catch (e: Exception) {
+        // Clear active flag on failure to allow retry
+        active = null
+        finish(e.message ?: "Recording could not start.")
+      }
     }
     // Never silently restart a journey after force-stop/reboot or create a hidden new journey.
     return START_NOT_STICKY
@@ -106,7 +111,11 @@ class RecordingService : Service(), SensorEventListener, LocationListener {
         .put(event.values[0].toDouble()).put(event.values[1].toDouble()).put(event.values[2].toDouble()))
       lastSampleAt = System.currentTimeMillis()
       if (kind == "a") lastAccel = SystemClock.elapsedRealtime() else lastGyro = SystemClock.elapsedRealtime()
-    } catch (e: Exception) { finish(e.message ?: "Sensor storage failed.") }
+    } catch (e: Exception) {
+      android.util.Log.e("RecordingService", "Sensor error", e)
+      finish(e.message ?: "Sensor storage failed.")
+      return@synchronized
+    }
   }
   override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
   override fun onLocationChanged(location: Location) = synchronized(Journal.lock) {
@@ -119,7 +128,11 @@ class RecordingService : Service(), SensorEventListener, LocationListener {
         .put(if (location.hasBearing()) location.bearing.toDouble() else null)
         .put(if (location.hasAltitude()) location.altitude else null))
       lastLocationAt = System.currentTimeMillis()
-    } catch (e: Exception) { finish(e.message ?: "Location storage failed.") }
+    } catch (e: Exception) {
+      android.util.Log.e("RecordingService", "Location error", e)
+      finish(e.message ?: "Location storage failed.")
+      return@synchronized
+    }
   }
   override fun onProviderDisabled(provider: String) { if (provider == LocationManager.GPS_PROVIDER) synchronized(Journal.lock) { finish("GPS was turned off. Finish the saved journey.") } }
   override fun onProviderEnabled(provider: String) {}
@@ -128,7 +141,11 @@ class RecordingService : Service(), SensorEventListener, LocationListener {
 
   private val health = object : Runnable {
     override fun run() = synchronized(Journal.lock) {
-      if (active !== this@RecordingService) return@synchronized
+      if (active !== this@RecordingService) {
+        // Defensive cleanup: remove all callbacks if service is no longer active
+        worker.removeCallbacksAndMessages(null)
+        return@synchronized
+      }
       try {
         output?.fd?.sync() // At most one second of unsynced data on sudden power loss.
         val elapsed = SystemClock.elapsedRealtime()
@@ -137,7 +154,10 @@ class RecordingService : Service(), SensorEventListener, LocationListener {
         val text = if (System.currentTimeMillis() - lastLocationAt > 15_000) "Waiting for GPS · motion data is being saved" else "Recording GPS and motion · screen can be locked"
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, notification(text))
         worker.postDelayed(this, 1000)
-      } catch (e: Exception) { finish(e.message ?: "Recording interrupted.") }
+      } catch (e: Exception) {
+        android.util.Log.e("RecordingService", "Health check failed", e)
+        finish(e.message ?: "Recording interrupted.")
+      }
     }
   }
 

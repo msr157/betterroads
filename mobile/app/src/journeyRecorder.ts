@@ -157,7 +157,7 @@ export class JourneyRecorder {
       const ownerId = await getCurrentUserId();
       this.native = JSON.parse(await nativeRecorder().start(JSON.stringify({ ...this.config, ownerId }))) as NativeSession;
       this.startedAt = this.native.startedAt;
-      for (let attempt = 0; attempt < 50; attempt++) {
+      for (let attempt = 0; attempt < 30; attempt++) {
         const session = await nativeSession();
         if (session?.running) { this.native = session; return; }
         if (session?.error) {
@@ -165,7 +165,9 @@ export class JourneyRecorder {
           this.native = null;
           throw new Error(session.error);
         }
-        await new Promise<void>((resolve) => setTimeout(resolve, 100));
+        // Exponential backoff: 100ms, 130ms, 169ms, ... up to 500ms max
+        const delay = Math.min(100 * Math.pow(1.3, attempt), 500);
+        await new Promise<void>((resolve) => setTimeout(resolve, delay));
       }
       await nativeRecorder().stop();
       throw new Error('Recording did not start. Reopen the app to recover the saved session.');

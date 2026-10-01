@@ -9,8 +9,13 @@ export type JournalPage = { offset: number; rows: JournalRow[] };
 
 /** Native accelerometer values already use m/s². Never apply Expo's g conversion here. */
 export function replaySensor(row: SensorRow, clock: SensorClock, accept: (epochMs: number, monotonicUs: number, value: Vector3) => void): void {
+  if (row.length !== 6 || (row[0] !== 'a' && row[0] !== 'g')) {
+    throw new Error(`Invalid sensor row format: ${JSON.stringify(row)}`);
+  }
   const [, epoch, timestamp, x, y, z] = row;
-  if (![epoch, timestamp, x, y, z].every(Number.isFinite)) throw new Error('Saved sensor data is invalid.');
+  if (![epoch, timestamp, x, y, z].every(Number.isFinite)) {
+    throw new Error('Saved sensor data is invalid.');
+  }
   const clocked = clock.map(timestamp, epoch);
   if (clocked) accept(clocked.epochMs, clocked.monotonicUs, { x, y, z });
 }
