@@ -62,36 +62,36 @@ export default function FeedbackWidget() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-50 rounded-full bg-ink px-5 py-3 text-sm font-medium tracking-wide text-paper shadow-lg transition-transform hover:-translate-y-1 hover:shadow-xl"
+        className="fixed bottom-6 right-6 z-50 rounded-full bg-gray-900 px-5 py-3 text-sm font-medium tracking-wide text-white shadow-lg transition-transform hover:-translate-y-1 hover:shadow-xl"
       >
         Send Feedback
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/20 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/20 p-4 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setOpen(false)} />
-          <div className="relative w-full max-w-md rounded-2xl bg-paper p-6 shadow-2xl">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             {success ? (
               <div className="py-12 text-center">
-                <h3 className="mb-2 text-2xl font-bold tracking-tight text-ink">Thank you!</h3>
-                <p className="text-ink-2">Your feedback has been submitted successfully.</p>
+                <h3 className="mb-2 text-2xl font-bold tracking-tight text-gray-900">Thank you!</h3>
+                <p className="text-gray-600">Your feedback has been submitted successfully.</p>
               </div>
             ) : (
               <form onSubmit={submit} className="space-y-4">
-                <h3 className="text-xl font-bold tracking-tight text-ink">Send Feedback</h3>
+                <h3 className="text-xl font-bold tracking-tight text-gray-900">Send Feedback</h3>
                 
                 <div className="relative">
-                  <label className="mb-1 block text-sm font-medium text-ink-2">Category</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Category</label>
                   <button
                     type="button"
                     onClick={() => setCategoryOpen(!categoryOpen)}
-                    className="flex w-full items-center justify-between rounded-xl border border-line bg-transparent px-3 py-2 text-ink focus:border-ink focus:outline-none"
+                    className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 transition-colors focus:border-gray-900 focus:outline-none hover:bg-gray-100/50"
                   >
                     {category}
-                    <span className="text-xs text-ink-3">▼</span>
+                    <span className="text-[10px] text-gray-400">▼</span>
                   </button>
                   {categoryOpen && (
-                    <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-10 overflow-hidden rounded-xl border border-line bg-paper shadow-lg">
+                    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-10 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-xl">
                       {['Suggestion', 'Bug Report', 'General'].map((cat) => (
                         <button
                           key={cat}
@@ -100,7 +100,7 @@ export default function FeedbackWidget() {
                             setCategory(cat);
                             setCategoryOpen(false);
                           }}
-                          className="block w-full px-3 py-2 text-left text-sm text-ink hover:bg-paper-2"
+                          className="block w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                         >
                           {cat}
                         </button>
@@ -110,46 +110,46 @@ export default function FeedbackWidget() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-ink-2">Description</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
                   <textarea
                     required
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Tell us what's on your mind..."
-                    className="h-32 w-full resize-none rounded-xl border border-line bg-transparent px-3 py-2 text-ink focus:border-ink focus:outline-none"
+                    className="h-32 w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 transition-colors focus:border-gray-900 focus:outline-none hover:bg-gray-100/50"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-ink-2">Name (optional)</label>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">Name (optional)</label>
                     <input
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full rounded-xl border border-line bg-transparent px-3 py-2 text-ink focus:border-ink focus:outline-none"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 transition-colors focus:border-gray-900 focus:outline-none hover:bg-gray-100/50"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-ink-2">Email (optional)</label>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">Email (optional)</label>
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-xl border border-line bg-transparent px-3 py-2 text-ink focus:border-ink focus:outline-none"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 transition-colors focus:border-gray-900 focus:outline-none hover:bg-gray-100/50"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-ink-2">Spam Check: What is {captchaNum1} + {captchaNum2}?</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Spam Check: What is {captchaNum1} + {captchaNum2}?</label>
                   <input
                     type="number"
                     required
                     value={captchaAnswer}
                     onChange={(e) => setCaptchaAnswer(e.target.value)}
                     placeholder="Enter the sum"
-                    className="w-full rounded-xl border border-line bg-transparent px-3 py-2 text-ink focus:border-ink focus:outline-none"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 transition-colors focus:border-gray-900 focus:outline-none hover:bg-gray-100/50"
                   />
                 </div>
 
@@ -157,14 +157,14 @@ export default function FeedbackWidget() {
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="rounded-xl px-4 py-2 font-medium text-ink-2 hover:bg-ink/5 hover:text-ink"
+                    className="rounded-xl px-4 py-2 font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="rounded-xl bg-ink px-6 py-2 font-medium text-paper disabled:opacity-50"
+                    className="rounded-xl bg-gray-900 px-6 py-2 font-medium text-white transition-opacity hover:bg-black disabled:opacity-50"
                   >
                     {submitting ? 'Sending...' : 'Send'}
                   </button>

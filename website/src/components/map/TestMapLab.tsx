@@ -97,7 +97,7 @@ function MapCanvas({ mode = 'city', onSelect }: { mode?: 'city' | 'india'; onSel
         },
         layers: [
           { id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-saturation': -0.75, 'raster-contrast': -0.08, 'raster-brightness-max': 0.96 } },
-          { id: 'boundary-casing', type: 'line', source: 'boundary', paint: { 'line-color': '#ffffff', 'line-width': 4 } },
+          { id: 'boundary-casing', type: 'line', source: 'boundary', paint: { 'line-color': '#ffffff', 'line-width': 14 } },
           { id: 'boundary', type: 'line', source: 'boundary', paint: { 'line-color': '#77736a', 'line-width': 1.2 } },
         ],
       },

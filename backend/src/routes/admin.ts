@@ -55,8 +55,9 @@ router.post(
     } catch (e) {
       return c.json({ ok: false, error: 'Invalid payload.' }, 400);
     }
+    const hashedPassword = createHash('sha256').update(password).digest('hex');
     const [administrator] = await db.select().from(administrators).where(eq(administrators.username, username.trim())).limit(1);
-    if (!administrator || !(await verifyPassword(password, administrator.passwordHash))) {
+    if (!administrator || !(await verifyPassword(hashedPassword, administrator.passwordHash))) {
       return c.json({ ok: false, error: 'Invalid username or password.' }, 401);
     }
     const session = await createAdminSession(administrator.id, c.req.header('user-agent'), c.req.header('x-forwarded-for'));
