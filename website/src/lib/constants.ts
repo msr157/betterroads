@@ -88,7 +88,7 @@ export const STATS = [
  */
 export const APP_DOWNLOAD = {
   version: '1.4.0',
-  apkUrl: 'https://github.com/msr157/betterroads/releases/download/v1.4.0/BetterRoads.apk',
+  apkUrl: '/downloads/BetterRoads.apk',
   apkName: 'BetterRoads.apk',
   requirement: 'Android 10 or newer',
   packageId: 'org.betterroads.app',
