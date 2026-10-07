@@ -1,8 +1,8 @@
 # BetterRoads Project: Complete Understanding
 
-**Last Updated:** October 2, 2026  
-**Current Version:** v1.3.1 (Mobile), v1.2.1 (Platform)  
-**Branch:** `fix/android-background-recording`  
+**Last Updated:** October 7, 2026  
+**Current Version:** v1.4.1 (Platform & Mobile)  
+**Branch:** `main`  
 **Production URL:** https://betterroads.org
 
 ---
@@ -54,7 +54,7 @@ BetterRoads is a citizen-powered road infrastructure monitoring platform that tu
 │  └─ Feedback widget with CAPTCHA                                │
 │                                                                   │
 │  Dashboard (React/Vite)                                          │
-│  ├─ Administrator authentication                                 │
+│  ├─ E2E AES-GCM Encrypted Administrator authentication           │
 │  ├─ Journey operations & device management                       │
 │  ├─ Map analytics with filters & replay                         │
 │  ├─ Contract CRUD & CSV import                                   │
@@ -78,7 +78,7 @@ BetterRoads is a citizen-powered road infrastructure monitoring platform that tu
 | **Native** | Kotlin (Android recording service), Expo Modules |
 | **AI/Data** | Python 3.11+, psycopg, NumPy |
 | **Infra** | Docker, Dokploy, Traefik, Cloudflare Tunnel, nginx |
-| **Maps** | CartoDB tiles, OpenStreetMap, DataMeet India GeoJSON |
+| **Maps** | CartoDB tiles, OpenStreetMap, DataMeet India GeoJSON (Custom Kashmir bounds mask) |
 
 ---
 
