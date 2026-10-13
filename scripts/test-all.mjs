@@ -9,8 +9,16 @@ function run(command, args, cwd = root) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-run(process.execPath, [join(root, 'backend', 'node_modules', 'tsx', 'dist', 'cli.mjs'), '--test', 'src/**/*.test.ts'], join(root, 'backend'));
-run(process.execPath, [join(root, 'mobile', 'app', 'node_modules', 'tsx', 'dist', 'cli.mjs'), '--test', 'src/**/*.test.ts'], join(root, 'mobile', 'app'));
+const tsxCli = [
+  join(root, 'backend', 'node_modules', 'tsx', 'dist', 'cli.mjs'),
+  join(root, 'mobile', 'app', 'node_modules', 'tsx', 'dist', 'cli.mjs'),
+  join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs'),
+].find(existsSync);
+
+run(process.execPath, [tsxCli, '--test', 'src/**/*.test.ts'], join(root, 'backend'));
+if (existsSync(join(root, 'mobile', 'app', 'src'))) {
+  run(process.execPath, [tsxCli, '--test', 'src/**/*.test.ts'], join(root, 'mobile', 'app'));
+}
 const localPython = process.platform === 'win32'
   ? join(root, 'ai', '.venv', 'Scripts', 'python.exe')
   : join(root, 'ai', '.venv', 'bin', 'python');
